@@ -216,7 +216,7 @@ fun PreviewScreen(
                 TextButton(onClick = {
                     scope.launch {
                         try {
-                            api.deleteArticle(sourceName.removeSuffix(".md"))
+                            api.deleteSource(sourceName)
                             snackbarHostState.showSnackbar("已删除")
                             onBack()
                         } catch (e: Exception) {

@@ -30,7 +30,6 @@ fun SourcesScreen(
     val scope = rememberCoroutineScope()
     var sources by remember { mutableStateOf<List<SourceInfo>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var isRefreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var selectedSource by remember { mutableStateOf<SourceInfo?>(null) }
     var showPreview by remember { mutableStateOf(false) }
@@ -42,13 +41,11 @@ fun SourcesScreen(
             error = null
             try {
                 val response = api.getSources()
-                // 按修改时间降序排列（最新的在前）
                 sources = response.sources.sortedByDescending { it.modTime }
             } catch (e: Exception) {
                 error = "加载失败: ${e.localizedMessage}"
             }
             loading = false
-            isRefreshing = false
         }
     }
 
@@ -69,102 +66,90 @@ fun SourcesScreen(
         return
     }
 
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = {
-            isRefreshing = true
-            loadSources()
-        },
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (loading && sources.isEmpty() && !isRefreshing) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (error != null && sources.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(Icons.Default.CloudOff, contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = error ?: "", color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedButton(onClick = { loadSources() }) {
-                        Text("重试")
-                    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (loading && sources.isEmpty()) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        } else if (error != null && sources.isEmpty()) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(Icons.Default.CloudOff, contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = error ?: "", color = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedButton(onClick = { loadSources() }) {
+                    Text("重试")
                 }
-            } else if (sources.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(Icons.Default.Inbox, contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("暂无资源文件", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("点击右下角 + 上传文件", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp)
-                ) {
-                    // 顶部工具栏：文件计数 + 刷新按钮
-                    item(key = "header") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "共 ${sources.size} 个文件",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        } else if (sources.isEmpty()) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(Icons.Default.Inbox, contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("暂无资源文件", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("点击右下角 + 上传文件", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp)
+            ) {
+                // 顶部工具栏：文件计数 + 刷新按钮
+                item(key = "header") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "共 ${sources.size} 个文件",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(onClick = { loadSources() }) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "刷新",
+                                tint = MaterialTheme.colorScheme.primary
                             )
-                            Spacer(modifier = Modifier.weight(1f))
-                            IconButton(onClick = {
-                                isRefreshing = true
-                                loadSources()
-                            }) {
-                                Icon(
-                                    Icons.Default.Refresh,
-                                    contentDescription = "刷新",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
                         }
                     }
+                }
 
-                    items(sources, key = { it.name }) { source ->
-                        SourceItem(
-                            source = source,
-                            onClick = {
-                                selectedSource = source
-                                showPreview = true
-                            },
-                            onDelete = { showDeleteConfirm = source }
-                        )
-                    }
+                items(sources, key = { it.name }) { source ->
+                    SourceItem(
+                        source = source,
+                        onClick = {
+                            selectedSource = source
+                            showPreview = true
+                        },
+                        onDelete = { showDeleteConfirm = source }
+                    )
                 }
             }
+        }
 
-            // FAB
-            FloatingActionButton(
-                onClick = onUploadClick,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "上传",
-                    tint = MaterialTheme.colorScheme.onPrimary)
-            }
+        // FAB
+        FloatingActionButton(
+            onClick = onUploadClick,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.primary
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "上传",
+                tint = MaterialTheme.colorScheme.onPrimary)
         }
     }
 
@@ -178,7 +163,6 @@ fun SourcesScreen(
                 TextButton(onClick = {
                     scope.launch {
                         try {
-                            // 使用正确的后端 API: DELETE /api/sources?name=xxx
                             api.deleteSource(source.name)
                             snackbarHostState.showSnackbar("已删除")
                             loadSources()
