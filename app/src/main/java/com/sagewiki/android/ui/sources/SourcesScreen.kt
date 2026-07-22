@@ -23,6 +23,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SourcesScreen(
     api: SageWikiApi,
+    serverUrl: String,
     onUploadClick: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
@@ -54,6 +55,7 @@ fun SourcesScreen(
         PreviewScreen(
             api = api,
             sourceName = selectedSource!!.name,
+            serverUrl = serverUrl,
             onBack = {
                 showPreview = false
                 selectedSource = null

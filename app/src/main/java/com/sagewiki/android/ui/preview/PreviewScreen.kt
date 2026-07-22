@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 fun PreviewScreen(
     api: SageWikiApi,
     sourceName: String,
+    serverUrl: String,
     onBack: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
@@ -180,7 +181,8 @@ fun PreviewScreen(
                             modifier = Modifier
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                                 .clickable {
-                                    val url = "${articlePath}?preview=$path"
+                                    val base = serverUrl.trimEnd('/')
+                                    val url = "$base/wiki/$path"
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                     context.startActivity(intent)
                                 }

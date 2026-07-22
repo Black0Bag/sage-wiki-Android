@@ -28,8 +28,8 @@ interface SageWikiApi {
     @POST("api/sources/upload")
     suspend fun uploadSource(@Part file: MultipartBody.Part): UploadResponse
 
-    @POST("api/compile")
-    suspend fun compile(): CompileResponse
+    @GET("api/compile")
+    suspend fun compile(@Query("source") source: String? = null): CompileResponse
 
     @POST("api/share")
     suspend fun share(@Body body: ShareRequest): ShareResponse

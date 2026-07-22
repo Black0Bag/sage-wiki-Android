@@ -123,6 +123,7 @@ fun MainScreen(
                 0 -> api?.let { nonNullApi ->
                     SourcesScreen(
                         api = nonNullApi,
+                        serverUrl = serverUrl,
                         onUploadClick = { filePickerLauncher.launch("*/*") },
                         snackbarHostState = snackbarHostState
                     )
