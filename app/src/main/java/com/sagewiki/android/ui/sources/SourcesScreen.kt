@@ -16,6 +16,8 @@ import com.sagewiki.android.network.SageWikiApi
 import com.sagewiki.android.network.SourceInfo
 import com.sagewiki.android.ui.preview.PreviewScreen
 import kotlinx.coroutines.launch
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -188,11 +190,19 @@ private fun SourceItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = formatSize(source.size),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row {
+                    Text(
+                        text = formatSize(source.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = formatTime(source.modTime),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             IconButton(onClick = onDelete) {
@@ -211,5 +221,14 @@ private fun formatSize(bytes: Long): String {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
         else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+    }
+}
+
+private fun formatTime(iso: String): String {
+    return try {
+        val zdt = ZonedDateTime.parse(iso)
+        zdt.format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+    } catch (e: Exception) {
+        iso.take(16)
     }
 }

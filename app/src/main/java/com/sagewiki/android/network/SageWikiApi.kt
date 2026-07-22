@@ -46,6 +46,9 @@ interface SageWikiApi {
     @GET("api/manifest")
     suspend fun getManifest(): ManifestResponse
 
+    @GET("api/models")
+    suspend fun getModels(@Query("fetch") fetch: Boolean = false): ModelsFetchResponse
+
     companion object {
         fun create(baseUrl: String, token: String? = null): SageWikiApi {
             val logging = HttpLoggingInterceptor().apply {

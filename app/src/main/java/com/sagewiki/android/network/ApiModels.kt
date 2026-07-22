@@ -122,7 +122,19 @@ data class ConfigUpdateRequest(
     val language: String? = null,
     val llm_model: String? = null,
     val embedding_model: String? = null,
-    val output: String? = null
+    val output: String? = null,
+    val api_key: String? = null,
+    val api_base: String? = null
+)
+
+data class ModelsFetchResponse(
+    val `object`: String?,
+    val data: List<ModelInfo>?
+)
+
+data class ModelInfo(
+    val id: String,
+    val `object`: String?
 )
 
 data class ConfigUpdateResponse(
