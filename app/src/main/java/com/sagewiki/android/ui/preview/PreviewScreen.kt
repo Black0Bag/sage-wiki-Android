@@ -345,3 +345,19 @@ fun PreviewScreen(
         )
     }
 }
+
+private fun extractLinksForSource(manifest: ManifestResponse, sourceName: String): List<Pair<String, String>> {
+    val links = mutableListOf<Pair<String, String>>()
+    manifest.concepts?.forEach { (name, info) ->
+        if (info.source == sourceName || info.articlePath?.contains(sourceName.removeSuffix(".md")) == true) {
+            val path = info.articlePath ?: "concepts/$name.md"
+            links.add("概念: $name" to path)
+        }
+    }
+    manifest.summaries?.forEach { summary ->
+        if (summary.contains(sourceName.removeSuffix(".md"))) {
+            links.add("摘要: $summary" to summary)
+        }
+    }
+    return links
+}
