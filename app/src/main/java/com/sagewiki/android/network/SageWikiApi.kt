@@ -40,8 +40,8 @@ interface SageWikiApi {
     @PUT("api/article")
     suspend fun writeArticle(@Body body: ArticleWriteRequest): Map<String, Any>
 
-    @DELETE("api/article")
-    suspend fun deleteArticle(@Query("path") path: String): ArticleDeleteResponse
+    @DELETE("api/sources")
+    suspend fun deleteSource(@Query("name") name: String): SourcesResponse
 
     @GET("api/manifest")
     suspend fun getManifest(): ManifestResponse

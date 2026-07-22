@@ -42,7 +42,11 @@ fun PreviewScreen(
     var compiledLinks by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    val articlePath = "raw/$sourceName"
+    val articlePath = if (sourceName.endsWith(".txt", ignoreCase = true)) {
+        sourceName
+    } else {
+        "raw/$sourceName"
+    }
 
     LaunchedEffect(sourceName) {
         loading = true
@@ -58,12 +62,20 @@ fun PreviewScreen(
             } catch (_: Exception) { }
         } catch (e: Exception) {
             try {
-                val altPath = sourceName.removeSuffix(".md")
-                val article = api.getArticle("concepts/$altPath.md")
+                // For .md files, try concepts path; for .txt files, try raw/ path
+                val altPath = if (sourceName.endsWith(".txt", ignoreCase = true)) {
+                    "raw/$sourceName"
+                } else {
+                    "concepts/${sourceName.removeSuffix(".md")}.md"
+                }
+                val article = api.getArticle(altPath)
                 content = article.body ?: "（空文件）"
                 editedContent = content
             } catch (e2: Exception) {
-                error = "加载失败: ${e.localizedMessage}"
+                error = if (sourceName.endsWith(".txt", ignoreCase = true))
+                    "预览 .txt 文件暂不支持：后端不提供此格式。请在 Web 端查看。"
+                else
+                    "加载失败: ${e2.localizedMessage}"
             }
         }
         loading = false
