@@ -40,8 +40,14 @@ interface SageWikiApi {
     @PUT("api/article")
     suspend fun writeArticle(@Body body: ArticleWriteRequest): Map<String, Any>
 
+    @GET("api/sources/raw/{name}")
+    suspend fun getSourceRaw(@Path("name", encoded = true) name: String): okhttp3.ResponseBody
+
+    @PUT("api/sources/update")
+    suspend fun updateSource(@Body body: SourceUpdateRequest): Map<String, Any>
+
     @DELETE("api/sources")
-    suspend fun deleteSource(@Query("name") name: String): SourcesResponse
+    suspend fun deleteSource(@Query("name") name: String): Map<String, Any>
 
     @GET("api/manifest")
     suspend fun getManifest(): ManifestResponse

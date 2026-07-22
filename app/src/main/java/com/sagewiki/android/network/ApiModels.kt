@@ -64,6 +64,11 @@ data class ArticleDeleteResponse(
     val path: String?
 )
 
+data class SourceUpdateRequest(
+    val name: String,
+    val content: String
+)
+
 data class ConfigResponse(
     val project: String?,
     val description: String?,
