@@ -1,0 +1,245 @@
+package com.sagewiki.android.ui.preview
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
+import com.sagewiki.android.network.ManifestResponse
+import com.sagewiki.android.network.SageWikiApi
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PreviewScreen(
+    api: SageWikiApi,
+    sourceName: String,
+    onBack: () -> Unit,
+    snackbarHostState: SnackbarHostState
+) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    var content by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStringStateOf(null) }
+    var isEditing by remember { mutableStateOf(false) }
+    var editedContent by remember { mutableStateOf("") }
+    var manifest by remember { mutableStateOf<ManifestResponse?>(null) }
+    var compiledLinks by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    // Determine the article path: source files are in raw/, compiled articles in wiki/
+    val articlePath = "raw/$sourceName"
+
+    LaunchedEffect(sourceName) {
+        loading = true
+        error = null
+        try {
+            // Try reading as raw source first
+            val article = api.getArticle(articlePath)
+            content = article.body ?: "（空文件）"
+            editedContent = content
+
+            // Load manifest to find compiled article links
+            try {
+                val mf = api.getManifest()
+                manifest = mf
+                compiledLinks = extractLinksForSource(mf, sourceName)
+            } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Fallback: try reading as compiled article
+            try {
+                val altPath = sourceName.removeSuffix(".md")
+                val article = api.getArticle("concepts/$altPath.md")
+                content = article.body ?: "（空文件）"
+                editedContent = content
+            } catch (e2: Exception) {
+                error = "加载失败: ${e.localizedMessage}"
+            }
+        }
+        loading = false
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(sourceName, maxLines = 1) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    if (isEditing) {
+                        IconButton(onClick = { isEditing = false; editedContent = content }) {
+                            Icon(Icons.Default.Close, contentDescription = "取消编辑")
+                        }
+                        IconButton(onClick = {
+                            scope.launch {
+                                try {
+                                    api.writeArticle(
+                                        com.sagewiki.android.network.ArticleWriteRequest(
+                                            path = articlePath,
+                                            content = editedContent
+                                        )
+                                    )
+                                    content = editedContent
+                                    isEditing = false
+                                    snackbarHostState.showSnackbar("已保存")
+                                } catch (e: Exception) {
+                                    snackbarHostState.showSnackbar("保存失败: ${e.localizedMessage}")
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Save, contentDescription = "保存")
+                        }
+                    } else {
+                        IconButton(onClick = { isEditing = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "编辑")
+                        }
+                        IconButton(onClick = { showDeleteConfirm = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "删除",
+                                tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        if (loading) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (error != null) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.ErrorOutline, contentDescription = null,
+                        modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(error!!)
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Content
+                if (isEditing) {
+                    OutlinedTextField(
+                        value = editedContent,
+                        onValueChange = { editedContent = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 400.dp)
+                            .padding(16.dp),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace
+                        )
+                    )
+                } else {
+                    Text(
+                        text = content,
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Compiled links
+                if (compiledLinks.isNotEmpty()) {
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "编译信息",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    compiledLinks.forEach { (label, path) ->
+                        Text(
+                            text = label,
+                            color = Color(0xFF1976D2),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                textDecoration = TextDecoration.Underline
+                            ),
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .clickable {
+                                    val url = "${api.baseUrl()}api/articles/$path"
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    context.startActivity(intent)
+                                }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("确认删除") },
+            text = { Text("确定要删除「$sourceName」吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        try {
+                            api.deleteArticle(sourceName.removeSuffix(".md"))
+                            snackbarHostState.showSnackbar("已删除")
+                            onBack()
+                        } catch (e: Exception) {
+                            snackbarHostState.showSnackbar("删除失败: ${e.localizedMessage}")
+                        }
+                    }
+                    showDeleteConfirm = false
+                }) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+            }
+        )
+    }
+}
+
+private fun extractLinksForSource(manifest: ManifestResponse, sourceName: String): List<Pair<String, String>> {
+    val links = mutableListOf<Pair<String, String>>()
+    manifest.concepts?.forEach { (name, info) ->
+        if (info.source == sourceName || info.articlePath?.contains(sourceName.removeSuffix(".md")) == true) {
+            val path = info.articlePath ?: "concepts/$name.md"
+            links.add("概念: $name" to path)
+        }
+    }
+    manifest.summaries?.forEach { summary ->
+        if (summary.contains(sourceName.removeSuffix(".md"))) {
+            links.add("摘要: $summary" to summary)
+        }
+    }
+    return links
+}

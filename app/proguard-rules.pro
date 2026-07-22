@@ -1,0 +1,6 @@
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.sagewiki.android.network.** { *; }
+-keep class com.sagewiki.android.data.** { *; }
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**

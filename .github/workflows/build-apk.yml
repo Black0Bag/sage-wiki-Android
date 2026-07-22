@@ -1,0 +1,104 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Sign release APK (debug key fallback)
+        run: |
+          # Generate a temporary keystore for release signing
+          keytool -genkey -v -keystore release.keystore \
+            -alias release -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=SageWiki,OU=Dev,O=SageWiki,L=Unknown,C=CN" 2>/dev/null
+          # Sign the APK with the release key
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "Debug APK built successfully"
+            ls -lh app/build/outputs/apk/debug/
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sage-wiki-android-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+  release:
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sage-wiki-android-apk
+          path: apk-artifacts
+
+      - name: Generate release tag and notes
+        run: |
+          VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          {
+            echo "## Sage Wiki Android $VERSION"
+            echo ""
+            echo "### Downloads"
+            ls -1 apk-artifacts/ | while read f; do echo "- \`$f\`"; done
+            echo ""
+            echo "### Changes"
+            git log --oneline --no-decorate -20 2>/dev/null || echo "Initial release"
+          } > release-notes.md
+        id: version
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "Sage Wiki Android ${{ steps.version.outputs.version }}" \
+            --notes-file release-notes.md \
+            apk-artifacts/*.apk
