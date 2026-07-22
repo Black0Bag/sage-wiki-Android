@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.sagewiki.android.network.ArticleWriteRequest
 import com.sagewiki.android.network.ManifestResponse
 import com.sagewiki.android.network.SageWikiApi
 import kotlinx.coroutines.launch
@@ -34,33 +35,27 @@ fun PreviewScreen(
 
     var content by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStringStateOf(null) }
+    var error by remember { mutableStateOf<String?>(null) }
     var isEditing by remember { mutableStateOf(false) }
     var editedContent by remember { mutableStateOf("") }
-    var manifest by remember { mutableStateOf<ManifestResponse?>(null) }
     var compiledLinks by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    // Determine the article path: source files are in raw/, compiled articles in wiki/
     val articlePath = "raw/$sourceName"
 
     LaunchedEffect(sourceName) {
         loading = true
         error = null
         try {
-            // Try reading as raw source first
             val article = api.getArticle(articlePath)
             content = article.body ?: "（空文件）"
             editedContent = content
 
-            // Load manifest to find compiled article links
             try {
                 val mf = api.getManifest()
-                manifest = mf
                 compiledLinks = extractLinksForSource(mf, sourceName)
             } catch (_: Exception) { }
         } catch (e: Exception) {
-            // Fallback: try reading as compiled article
             try {
                 val altPath = sourceName.removeSuffix(".md")
                 val article = api.getArticle("concepts/$altPath.md")
@@ -91,7 +86,7 @@ fun PreviewScreen(
                             scope.launch {
                                 try {
                                     api.writeArticle(
-                                        com.sagewiki.android.network.ArticleWriteRequest(
+                                        ArticleWriteRequest(
                                             path = articlePath,
                                             content = editedContent
                                         )
@@ -131,7 +126,7 @@ fun PreviewScreen(
                     Icon(Icons.Default.ErrorOutline, contentDescription = null,
                         modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(error!!)
+                    Text(text = error ?: "")
                 }
             }
         } else {
@@ -141,7 +136,6 @@ fun PreviewScreen(
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Content
                 if (isEditing) {
                     OutlinedTextField(
                         value = editedContent,
@@ -165,7 +159,6 @@ fun PreviewScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Compiled links
                 if (compiledLinks.isNotEmpty()) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     Spacer(modifier = Modifier.height(12.dp))
@@ -187,7 +180,7 @@ fun PreviewScreen(
                             modifier = Modifier
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                                 .clickable {
-                                    val url = "${api.baseUrl()}api/articles/$path"
+                                    val url = "${articlePath}?preview=$path"
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                     context.startActivity(intent)
                                 }

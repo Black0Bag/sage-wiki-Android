@@ -27,11 +27,10 @@ fun SourcesScreen(
     val scope = rememberCoroutineScope()
     var sources by remember { mutableStateOf<List<SourceInfo>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStringStateOf(null) }
+    var error by remember { mutableStateOf<String?>(null) }
     var selectedSource by remember { mutableStateOf<SourceInfo?>(null) }
     var showPreview by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf<SourceInfo?>(null) }
-    var refreshing by remember { mutableStateOf(false) }
 
     fun loadSources() {
         scope.launch {
@@ -75,7 +74,7 @@ fun SourcesScreen(
                     modifier = Modifier.size(48.dp),
                     tint = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(error!!, color = MaterialTheme.colorScheme.error)
+                Text(text = error ?: "", color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedButton(onClick = { loadSources() }) {
                     Text("重试")
@@ -107,18 +106,9 @@ fun SourcesScreen(
                             selectedSource = source
                             showPreview = true
                         },
-                        onDelete = { showDeleteConfirm = source },
-                        onRefresh = { refreshing = true }
+                        onDelete = { showDeleteConfirm = source }
                     )
                 }
-            }
-        }
-
-        // Refresh indicator
-        if (refreshing) {
-            LaunchedEffect(Unit) {
-                try { api.getSources(); loadSources() } catch (_: Exception) {}
-                refreshing = false
             }
         }
 
@@ -167,8 +157,7 @@ fun SourcesScreen(
 private fun SourceItem(
     source: SourceInfo,
     onClick: () -> Unit,
-    onDelete: () -> Unit,
-    onRefresh: () -> Unit
+    onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -184,7 +173,7 @@ private fun SourceItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = getIconForFile(source.name),
+                imageVector = Icons.Default.Description,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(40.dp)
@@ -214,18 +203,6 @@ private fun SourceItem(
                 )
             }
         }
-    }
-}
-
-private fun getIconForFile(name: String): androidx.compose.ui.graphics.vector.ImageVector {
-    return when {
-        name.endsWith(".md") -> Icons.Default.Description
-        name.endsWith(".pdf") -> Icons.Default.PictureAsPdf
-        name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")
-            || name.endsWith(".gif") || name.endsWith(".webp") -> Icons.Default.Image
-        name.endsWith(".txt") -> Icons.Default.TextSnippet
-        name.endsWith(".html") || name.endsWith(".htm") -> Icons.Default.Code
-        else -> Icons.Default.InsertDriveFile
     }
 }
 

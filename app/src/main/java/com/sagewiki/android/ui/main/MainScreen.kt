@@ -10,17 +10,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.sagewiki.android.MainActivity
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.*
 import com.sagewiki.android.ui.settings.SettingsScreen
 import com.sagewiki.android.ui.sources.SourcesScreen
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    initialSharedText: MainActivity.ShareData?,
     appSettings: AppSettings
 ) {
     val context = LocalContext.current
@@ -31,7 +34,6 @@ fun MainScreen(
     var bearerToken by remember { mutableStateOf("") }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showAppSettings by remember { mutableStateOf(false) }
-    var showUploadSheet by remember { mutableStateOf(false) }
     var snackbarHostState by remember { mutableStateOf(SnackbarHostState()) }
 
     // Init API client from stored settings
@@ -42,9 +44,9 @@ fun MainScreen(
     }
 
     // Handle incoming share
-    LaunchedEffect(initialSharedText) {
-        val share = initialSharedText ?: MainActivity.companion.pendingShare ?: return@LaunchedEffect
-        MainActivity.companion.pendingShare = null
+    LaunchedEffect(Unit) {
+        val share = MainActivity.pendingShare ?: return@LaunchedEffect
+        MainActivity.pendingShare = null
         val currentApi = api ?: return@LaunchedEffect
         try {
             currentApi.share(ShareRequest(
@@ -70,7 +72,8 @@ fun MainScreen(
                     try {
                         val inputStream = context.contentResolver.openInputStream(uri) ?: continue
                         val fileName = getFileName(context, uri) ?: "file_${System.currentTimeMillis()}"
-                        val requestBody = inputStream.readBytes().toRequestBody()
+                        val bytes = inputStream.readBytes()
+                        val requestBody = bytes.toRequestBody("application/octet-stream".toMediaTypeOrNull())
                         val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
                         currentApi.uploadSource(part)
                     } catch (e: Exception) {
@@ -205,6 +208,3 @@ private fun getFileName(context: android.content.Context, uri: Uri): String? {
         if (idx >= 0 && it.moveToFirst()) it.getString(idx) else null
     }
 }
-
-private fun ByteArray.toRequestBody() =
-    okhttp3.RequestBody.create(okhttp3.MediaType.parse("application/octet-stream"), this)

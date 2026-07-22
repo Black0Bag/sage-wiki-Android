@@ -10,7 +10,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.sagewiki.android.data.AppSettings
-import com.sagewiki.android.network.SageWikiApi
 import com.sagewiki.android.network.ShareRequest
 import com.sagewiki.android.ui.main.MainScreen
 import com.sagewiki.android.ui.setup.SetupScreen
@@ -26,12 +25,14 @@ class MainActivity : ComponentActivity() {
         settings = AppSettings(applicationContext)
 
         val sharedText = extractSharedText(intent)
+        if (sharedText != null) {
+            pendingShare = sharedText
+        }
 
         setContent {
             SageWikiTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var setupDone by remember { mutableStateOf(false) }
-                    val scope = rememberCoroutineScope()
 
                     LaunchedEffect(Unit) {
                         settings.isSetupDone.collect { done ->
@@ -41,13 +42,10 @@ class MainActivity : ComponentActivity() {
 
                     if (!setupDone) {
                         SetupScreen(
-                            onSaved = {
-                                setupDone = true
-                            }
+                            onSaved = { setupDone = true }
                         )
                     } else {
                         MainScreen(
-                            initialSharedText = sharedText,
                             appSettings = settings
                         )
                     }
@@ -60,24 +58,19 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         val sharedText = extractSharedText(intent)
         if (sharedText != null) {
-            handleShare(sharedText)
+            pendingShare = sharedText
         }
     }
 
     private fun extractSharedText(intent: Intent?): ShareData? {
-        if (intent?.action != Intent.ACTION_SEND && intent?.action != Intent.ACTION_SEND_MULTIPLE) {
-            return null
-        }
-        if (intent.action == Intent.ACTION_SEND) {
-            val type = intent.type ?: return null
-            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
-            val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT) ?: ""
-            val title = subject.ifBlank { "分享内容" }
-            val url = extractUrl(text) ?: ""
-            val body = text?.replace(url, "")?.trim() ?: ""
-            return ShareData(title = title, text = body, url = url)
-        }
-        return null
+        if (intent?.action != Intent.ACTION_SEND) return null
+        val type = intent.type ?: return null
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+        val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT) ?: ""
+        val title = subject.ifBlank { "分享内容" }
+        val url = extractUrl(text) ?: ""
+        val body = text?.replace(url, "")?.trim() ?: ""
+        return ShareData(title = title, text = body, url = url)
     }
 
     private fun extractUrl(text: String?): String? {
@@ -92,9 +85,5 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         var pendingShare: ShareData? = null
-    }
-
-    private fun handleShare(data: ShareData) {
-        companion.pendingShare = data
     }
 }
