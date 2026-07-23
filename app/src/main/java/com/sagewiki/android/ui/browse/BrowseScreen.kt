@@ -17,6 +17,7 @@ import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.*
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowseScreen(appSettings: AppSettings) {
     val scope = rememberCoroutineScope()
@@ -24,35 +25,42 @@ fun BrowseScreen(appSettings: AppSettings) {
     val token = remember { mutableStateOf("") }
     val api = remember { mutableStateOf<SageWikiApi?>(null) }
 
-    // 知识树
-    val treeData = remember { mutableStateOf<TreeResponse?>(null) }
-    val concepts = remember { mutableStateOf<List<String>>(emptyList()) }
+    // 知识概念列表（从 tree API 的 Map 中提取）
+    val conceptList = remember { mutableStateListOf<String>() }
     val selectedConcept = remember { mutableStateOf<String?>(null) }
     val articleContent = remember { mutableStateOf<String?>(null) }
 
     val isLoading = remember { mutableStateOf(false) }
     val errorMsg = remember { mutableStateOf<String?>(null) }
-    val navStack = remember { mutableStateListOf<String>() }
 
     LaunchedEffect(Unit) {
         serverUrl.value = appSettings.getServerUrl()
         token.value = appSettings.getBearerToken()
         api.value = SageWikiApi.create(serverUrl.value, token.value)
-        loadTree()
+        loadConcepts()
     }
 
-    fun loadTree() {
+    fun loadConcepts() {
         val a = api.value ?: return
         scope.launch {
             isLoading.value = true
             errorMsg.value = null
             try {
-                val t = a.getTree()
-                treeData.value = t
-                // 扁平化概念列表
-                val allConcepts = mutableListOf<String>()
-                t.concepts?.keys?.let { allConcepts.addAll(it) }
-                concepts.value = allConcepts
+                val tree = a.getTree() // Map<String, Any>
+                conceptList.clear()
+                // 提取 concepts 下的 key
+                val conceptsMap = tree["concepts"]
+                if (conceptsMap is Map<*, *>) {
+                    conceptsMap.keys.forEach { key ->
+                        conceptList.add(key.toString())
+                    }
+                }
+                if (conceptList.isEmpty()) {
+                    // fallback: 列出所有顶级 key
+                    tree.keys.forEach { key ->
+                        conceptList.add(key)
+                    }
+                }
             } catch (e: Exception) {
                 errorMsg.value = "加载知识树失败: ${e.message}"
             }
@@ -122,18 +130,17 @@ fun BrowseScreen(appSettings: AppSettings) {
 
     // 知识树浏览视图
     Column(modifier = Modifier.fillMaxSize()) {
-        // 头部
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "知识树 (${concepts.value.size} 概念)",
+                "知识树 (${conceptList.size} 概念)",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            IconButton(onClick = { loadTree() }) {
+            IconButton(onClick = { loadConcepts() }) {
                 Icon(Icons.Filled.Refresh, "刷新")
             }
         }
@@ -145,7 +152,7 @@ fun BrowseScreen(appSettings: AppSettings) {
             ) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("⚠️ $err", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { loadTree() }) { Text("重试") }
+                    TextButton(onClick = { loadConcepts() }) { Text("重试") }
                 }
             }
         }
@@ -157,7 +164,7 @@ fun BrowseScreen(appSettings: AppSettings) {
             return@Column
         }
 
-        if (concepts.value.isEmpty()) {
+        if (conceptList.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("暂无概念", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -168,7 +175,7 @@ fun BrowseScreen(appSettings: AppSettings) {
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
-            items(concepts.value) { concept ->
+            items(conceptList.sorted()) { concept ->
                 ListItem(
                     headlineContent = { Text(concept, fontWeight = FontWeight.Medium) },
                     leadingContent = {

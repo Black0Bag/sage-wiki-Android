@@ -81,7 +81,7 @@ fun SearchScreen(appSettings: AppSettings) {
                     }
                 }
             },
-            enabled = !isLoading
+            enabled = !isLoading.value
         )
 
         // 错误信息

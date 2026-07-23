@@ -154,7 +154,7 @@ fun QAScreen(appSettings: AppSettings) {
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("输入问题...") },
                 singleLine = true,
-                enabled = !isLoading
+                enabled = !isLoading.value
             )
             Spacer(modifier = Modifier.width(8.dp))
             FilledIconButton(
