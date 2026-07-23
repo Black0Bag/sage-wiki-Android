@@ -22,7 +22,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(appSettings: AppSettings) {
     val scope = rememberCoroutineScope()

@@ -12,15 +12,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.*
+import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import kotlinx.coroutines.launch
 
 @Composable
 fun LibraryScreen(appSettings: AppSettings) {
@@ -76,7 +76,7 @@ fun LibraryScreen(appSettings: AppSettings) {
                 val bytes = inputStream?.readBytes() ?: return@launch
                 val fileName = uri.lastPathSegment ?: "upload"
                 val mime = ctx.contentResolver.getType(uri) ?: "application/octet-stream"
-                val body = bytes.toRequestBody(mime.toMediaType())
+                val body = okhttp3.RequestBody.create(mime.toMediaType(), bytes)
                 val part = MultipartBody.Part.createFormData("file", fileName, body)
                 a.uploadSource(part)
                 loadData()

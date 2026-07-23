@@ -108,6 +108,7 @@ data class EmbedConfigResponse(
     val model: String?,
     val dimensions: Int?,
     @SerializedName("base_url") val baseUrl: String?,
+    @SerializedName("api_key") val apiKey: String?,
     @SerializedName("rate_limit") val rateLimit: Int?
 )
 
