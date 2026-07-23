@@ -14,7 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.dp\nimport androidx.compose.ui.text.style.TextOverflow
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.*
 import kotlinx.coroutines.launch
@@ -63,19 +63,19 @@ fun LibraryScreen(appSettings: AppSettings) {
         loadData()
     }
 
+    val context = LocalContext.current
     // 文件上传选择器
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
         val a = api.value ?: return@rememberLauncherForActivityResult
-        val ctx = LocalContext.current
         scope.launch {
             try {
-                val inputStream = ctx.contentResolver.openInputStream(uri)
+                val inputStream = context.contentResolver.openInputStream(uri)
                 val bytes = inputStream?.readBytes() ?: return@launch
                 val fileName = uri.lastPathSegment ?: "upload"
-                val mime = ctx.contentResolver.getType(uri) ?: "application/octet-stream"
+                val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
                 val body = okhttp3.RequestBody.create(mime.toMediaType(), bytes)
                 val part = MultipartBody.Part.createFormData("file", fileName, body)
                 a.uploadSource(part)
