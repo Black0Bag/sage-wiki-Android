@@ -33,22 +33,25 @@ fun BrowseScreen(appSettings: AppSettings) {
     val isLoading = remember { mutableStateOf(false) }
     val errorMsg = remember { mutableStateOf<String?>(null) }
 
+    // 初始化 API（放在局部函数之前）
     LaunchedEffect(Unit) {
         serverUrl.value = appSettings.getServerUrl()
         token.value = appSettings.getBearerToken()
         api.value = SageWikiApi.create(serverUrl.value, token.value)
-        loadConcepts()
+        // 初始加载在 initLoad 中触发
+        initLoad()
     }
 
-    fun loadConcepts() {
-        val a = api.value ?: return
+    // 局部函数定义（必须在 LaunchedEffect 之前定义，但 Kotlin 中同在外部作用域，可以定义在这里）
+    // 但 Kotlin 局部函数不支持前置引用，所以定义为 val lambda 来模拟
+    val loadConcepts: () -> Unit = {
+        val a = api.value ?: return@loadConcepts
         scope.launch {
             isLoading.value = true
             errorMsg.value = null
             try {
-                val tree = a.getTree() // Map<String, Any>
+                val tree = a.getTree()
                 conceptList.clear()
-                // 提取 concepts 下的 key
                 val conceptsMap = tree["concepts"]
                 if (conceptsMap is Map<*, *>) {
                     conceptsMap.keys.forEach { key ->
@@ -56,7 +59,6 @@ fun BrowseScreen(appSettings: AppSettings) {
                     }
                 }
                 if (conceptList.isEmpty()) {
-                    // fallback: 列出所有顶级 key
                     tree.keys.forEach { key ->
                         conceptList.add(key)
                     }
@@ -68,8 +70,8 @@ fun BrowseScreen(appSettings: AppSettings) {
         }
     }
 
-    fun loadArticle(concept: String) {
-        val a = api.value ?: return
+    val loadArticle: (String) -> Unit = { concept ->
+        val a = api.value ?: return@loadArticle
         scope.launch {
             isLoading.value = true
             errorMsg.value = null
@@ -82,6 +84,10 @@ fun BrowseScreen(appSettings: AppSettings) {
             }
             isLoading.value = false
         }
+    }
+
+    fun initLoad() {
+        loadConcepts()
     }
 
     // 阅读视图
@@ -140,7 +146,7 @@ fun BrowseScreen(appSettings: AppSettings) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            IconButton(onClick = { loadConcepts() }) {
+            IconButton(onClick = loadConcepts) {
                 Icon(Icons.Filled.Refresh, "刷新")
             }
         }
@@ -152,7 +158,7 @@ fun BrowseScreen(appSettings: AppSettings) {
             ) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("⚠️ $err", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { loadConcepts() }) { Text("重试") }
+                    TextButton(onClick = loadConcepts) { Text("重试") }
                 }
             }
         }

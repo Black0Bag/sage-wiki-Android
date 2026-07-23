@@ -159,7 +159,7 @@ fun QAScreen(appSettings: AppSettings) {
             Spacer(modifier = Modifier.width(8.dp))
             FilledIconButton(
                 onClick = { sendQuestion(inputText) },
-                enabled = inputText.isNotBlank() && !isLoading
+                enabled = inputText.isNotBlank() && !isLoading.value
             ) {
                 Icon(Icons.Filled.Send, "发送")
             }
