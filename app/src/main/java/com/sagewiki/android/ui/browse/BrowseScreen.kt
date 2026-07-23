@@ -25,69 +25,43 @@ fun BrowseScreen(appSettings: AppSettings) {
     val token = remember { mutableStateOf("") }
     val api = remember { mutableStateOf<SageWikiApi?>(null) }
 
-    // 知识概念列表（从 tree API 的 Map 中提取）
     val conceptList = remember { mutableStateListOf<String>() }
     val selectedConcept = remember { mutableStateOf<String?>(null) }
     val articleContent = remember { mutableStateOf<String?>(null) }
-
     val isLoading = remember { mutableStateOf(false) }
     val errorMsg = remember { mutableStateOf<String?>(null) }
 
-    // 初始化 API（放在局部函数之前）
+    // 初始化 API & 首次加载
     LaunchedEffect(Unit) {
         serverUrl.value = appSettings.getServerUrl()
         token.value = appSettings.getBearerToken()
         api.value = SageWikiApi.create(serverUrl.value, token.value)
-        // 初始加载在 initLoad 中触发
-        initLoad()
     }
 
-    // 局部函数定义（必须在 LaunchedEffect 之前定义，但 Kotlin 中同在外部作用域，可以定义在这里）
-    // 但 Kotlin 局部函数不支持前置引用，所以定义为 val lambda 来模拟
-    val loadConcepts: () -> Unit = {
-        val a = api.value ?: return@loadConcepts
-        scope.launch {
-            isLoading.value = true
-            errorMsg.value = null
-            try {
-                val tree = a.getTree()
-                conceptList.clear()
-                val conceptsMap = tree["concepts"]
-                if (conceptsMap is Map<*, *>) {
-                    conceptsMap.keys.forEach { key ->
-                        conceptList.add(key.toString())
-                    }
+    // 加载概念列表（内联到 LaunchedEffect，通过 refreshKey 触发）
+    val refreshKey = remember { mutableStateOf(0) }
+    LaunchedEffect(refreshKey.value) {
+        if (api.value == null) return@LaunchedEffect
+        isLoading.value = true
+        errorMsg.value = null
+        try {
+            val tree = api.value!!.getTree()
+            conceptList.clear()
+            val conceptsMap = tree["concepts"]
+            if (conceptsMap is Map<*, *>) {
+                conceptsMap.keys.forEach { key ->
+                    conceptList.add(key.toString())
                 }
-                if (conceptList.isEmpty()) {
-                    tree.keys.forEach { key ->
-                        conceptList.add(key)
-                    }
+            }
+            if (conceptList.isEmpty()) {
+                tree.keys.forEach { key ->
+                    conceptList.add(key)
                 }
-            } catch (e: Exception) {
-                errorMsg.value = "加载知识树失败: ${e.message}"
             }
-            isLoading.value = false
+        } catch (e: Exception) {
+            errorMsg.value = "加载知识树失败: ${e.message}"
         }
-    }
-
-    val loadArticle: (String) -> Unit = { concept ->
-        val a = api.value ?: return@loadArticle
-        scope.launch {
-            isLoading.value = true
-            errorMsg.value = null
-            selectedConcept.value = concept
-            try {
-                val art = a.getArticle(concept)
-                articleContent.value = art.content
-            } catch (e: Exception) {
-                articleContent.value = "加载失败: ${e.message}"
-            }
-            isLoading.value = false
-        }
-    }
-
-    fun initLoad() {
-        loadConcepts()
+        isLoading.value = false
     }
 
     // 阅读视图
@@ -134,7 +108,7 @@ fun BrowseScreen(appSettings: AppSettings) {
         return
     }
 
-    // 知识树浏览视图
+    // 列表浏览视图
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -146,7 +120,7 @@ fun BrowseScreen(appSettings: AppSettings) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            IconButton(onClick = loadConcepts) {
+            IconButton(onClick = { refreshKey.value++ }) {
                 Icon(Icons.Filled.Refresh, "刷新")
             }
         }
@@ -158,7 +132,7 @@ fun BrowseScreen(appSettings: AppSettings) {
             ) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("⚠️ $err", modifier = Modifier.weight(1f))
-                    TextButton(onClick = loadConcepts) { Text("重试") }
+                    TextButton(onClick = { refreshKey.value++ }) { Text("重试") }
                 }
             }
         }
@@ -190,7 +164,22 @@ fun BrowseScreen(appSettings: AppSettings) {
                     trailingContent = {
                         Icon(Icons.Filled.ChevronRight, "查看")
                     },
-                    modifier = Modifier.clickable { loadArticle(concept) }
+                    modifier = Modifier.clickable {
+                        // 加载文章
+                        val a = api.value ?: return@clickable
+                        scope.launch {
+                            isLoading.value = true
+                            errorMsg.value = null
+                            selectedConcept.value = concept
+                            try {
+                                val art = a.getArticle(concept)
+                                articleContent.value = art.content
+                            } catch (e: Exception) {
+                                articleContent.value = "加载失败: ${e.message}"
+                            }
+                            isLoading.value = false
+                        }
+                    }
                 )
             }
         }
