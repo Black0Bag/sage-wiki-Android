@@ -70,43 +70,6 @@ fun SettingsScreen(appSettings: AppSettings) {
     val snackMsg = remember { mutableStateOf<String?>(null) }
     var tokenVisible by remember { mutableStateOf(false) }
 
-    // 初始化
-    LaunchedEffect(Unit) {
-        serverUrl.value = appSettings.getServerUrl()
-        token.value = appSettings.getBearerToken()
-        api.value = SageWikiApi.create(serverUrl.value, token.value)
-        activeServer.value = appSettings.activeServerName.first()
-        val sl = appSettings.getServerList()
-        serverList.clear()
-        serverList.addAll(sl)
-        loadConfig()
-        isLoading.value = false
-    }
-
-    fun loadConfig() {
-        val a = api.value ?: return
-        scope.launch {
-            isLoading.value = true
-            try {
-                val cfg = a.getConfig()
-                config.value = cfg
-                llmModel.value = cfg.models?.summarize ?: ""
-                extractModel.value = cfg.models?.extract ?: ""
-                writeModel.value = cfg.models?.write ?: ""
-                lintModel.value = cfg.models?.lint ?: ""
-                queryModel.value = cfg.models?.query ?: ""
-                embeddingModel.value = cfg.embed?.model ?: ""
-                embeddingProvider.value = cfg.embed?.provider ?: ""
-                embeddingDims.value = cfg.embed?.dimensions?.toString() ?: ""
-                embeddingBaseUrl.value = cfg.embed?.baseUrl ?: ""
-                apiKey.value = cfg.api?.apiKey ?: ""
-                embeddingApiKey.value = cfg.embed?.apiKey ?: cfg.api?.apiKey ?: ""
-                apiBaseUrl.value = cfg.api?.baseUrl ?: ""
-            } catch (_: Exception) {}
-            isLoading.value = false
-        }
-    }
-
     fun saveConfig() {
         val a = api.value ?: return
         scope.launch {
@@ -141,7 +104,22 @@ fun SettingsScreen(appSettings: AppSettings) {
             token.value = appSettings.getBearerToken()
             api.value = SageWikiApi.create(serverUrl.value, token.value)
             activeServer.value = name
-            loadConfig()
+            // re-init config
+            scope.launch {
+                try {
+                    val cfg = api.value?.getConfig()
+                    cfg?.let { c ->
+                        llmModel.value = c.models?.summarize ?: ""
+                        extractModel.value = c.models?.extract ?: ""
+                        writeModel.value = c.models?.write ?: ""
+                        lintModel.value = c.models?.lint ?: ""
+                        queryModel.value = c.models?.query ?: ""
+                        embeddingModel.value = c.embed?.model ?: ""
+                        apiKey.value = c.api?.apiKey ?: ""
+                        apiBaseUrl.value = c.api?.baseUrl ?: ""
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -191,6 +169,42 @@ fun SettingsScreen(appSettings: AppSettings) {
         LaunchedEffect(msg) {
             kotlinx.coroutines.delay(2000)
             snackMsg.value = null
+        }
+    }
+
+    // 初始化
+    LaunchedEffect(Unit) {
+        serverUrl.value = appSettings.getServerUrl()
+        token.value = appSettings.getBearerToken()
+        api.value = SageWikiApi.create(serverUrl.value, token.value)
+        activeServer.value = appSettings.activeServerName.first()
+        val sl = appSettings.getServerList()
+        serverList.clear()
+        serverList.addAll(sl)
+        val a = api.value
+        if (a != null) {
+            scope.launch {
+                isLoading.value = true
+                try {
+                    val cfg = a.getConfig()
+                    config.value = cfg
+                    llmModel.value = cfg.models?.summarize ?: ""
+                    extractModel.value = cfg.models?.extract ?: ""
+                    writeModel.value = cfg.models?.write ?: ""
+                    lintModel.value = cfg.models?.lint ?: ""
+                    queryModel.value = cfg.models?.query ?: ""
+                    embeddingModel.value = cfg.embed?.model ?: ""
+                    embeddingProvider.value = cfg.embed?.provider ?: ""
+                    embeddingDims.value = cfg.embed?.dimensions?.toString() ?: ""
+                    embeddingBaseUrl.value = cfg.embed?.baseUrl ?: ""
+                    apiKey.value = cfg.api?.apiKey ?: ""
+                    embeddingApiKey.value = cfg.embed?.apiKey ?: cfg.api?.apiKey ?: ""
+                    apiBaseUrl.value = cfg.api?.baseUrl ?: ""
+                } catch (_: Exception) {}
+                isLoading.value = false
+            }
+        } else {
+            isLoading.value = false
         }
     }
 

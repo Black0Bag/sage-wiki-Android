@@ -69,9 +69,9 @@ fun LibraryScreen(appSettings: AppSettings) {
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
         val a = api.value ?: return@rememberLauncherForActivityResult
+        val ctx = LocalContext.current
         scope.launch {
             try {
-                val ctx = androidx.compose.ui.platform.LocalContext.current
                 val inputStream = ctx.contentResolver.openInputStream(uri)
                 val bytes = inputStream?.readBytes() ?: return@launch
                 val fileName = uri.lastPathSegment ?: "upload"
@@ -112,7 +112,7 @@ fun LibraryScreen(appSettings: AppSettings) {
         }
 
         when (selectedTab) {
-            0 -> SourceTab(sources, serverUrl.value, token.value, filePickerLauncher::launch) { loadData() }
+            0 -> SourceTab(sources, serverUrl.value, token.value, { filePickerLauncher.launch("image/*") }) { loadData() }
             1 -> CompilationTab(manifest.value)
             2 -> GraphTab(graph.value)
         }
