@@ -19,6 +19,9 @@ import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.data.ServerConfig
 import com.sagewiki.android.network.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 
 @Composable
 fun SettingsScreen(appSettings: AppSettings) {

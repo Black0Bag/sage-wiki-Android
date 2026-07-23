@@ -36,13 +36,6 @@ fun LibraryScreen(appSettings: AppSettings) {
     val errorMsg = remember { mutableStateOf<String?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        serverUrl.value = appSettings.getServerUrl()
-        token.value = appSettings.getBearerToken()
-        api.value = SageWikiApi.create(serverUrl.value, token.value)
-        loadData()
-    }
-
     fun loadData() {
         val a = api.value ?: return
         scope.launch {
@@ -61,6 +54,13 @@ fun LibraryScreen(appSettings: AppSettings) {
             }
             isLoading.value = false
         }
+    }
+
+    LaunchedEffect(Unit) {
+        serverUrl.value = appSettings.getServerUrl()
+        token.value = appSettings.getBearerToken()
+        api.value = SageWikiApi.create(serverUrl.value, token.value)
+        loadData()
     }
 
     // 文件上传选择器

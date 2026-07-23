@@ -38,8 +38,8 @@ class MainActivity : ComponentActivity() {
                     var setupDone by remember { mutableStateOf(false) }
 
                     LaunchedEffect(Unit) {
-                        settings.hasServers.collect { has ->
-                            setupDone = has
+                        settings.isSetupDone.collect { done ->
+                            setupDone = done
                         }
                     }
 
