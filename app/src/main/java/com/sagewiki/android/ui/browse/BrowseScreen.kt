@@ -173,7 +173,7 @@ fun BrowseScreen(appSettings: AppSettings) {
                             selectedConcept.value = concept
                             try {
                                 val art = a.getArticle(concept)
-                                articleContent.value = art.content
+                                articleContent.value = art.body
                             } catch (e: Exception) {
                                 articleContent.value = "加载失败: ${e.message}"
                             }
