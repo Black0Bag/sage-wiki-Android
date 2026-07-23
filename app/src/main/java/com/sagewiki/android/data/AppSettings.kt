@@ -47,7 +47,7 @@ class AppSettings(private val context: Context) {
         val raw = context.dataStore.data.first()[KEY_SERVER_LIST] ?: ""
         if (raw.isBlank()) return emptyList()
         return raw.split("\n").filter { it.isNotBlank() }.map { line ->
-            val parts = line.split("||")
+            val parts = line.split("\t")
             if (parts.size >= 3) ServerConfig(parts[0], parts[1], parts[2])
             else ServerConfig(parts.getOrElse(0) { "服务器" }, parts.getOrElse(1) { "" }, parts.getOrElse(2) { "" })
         }
@@ -80,7 +80,7 @@ class AppSettings(private val context: Context) {
     }
 
     private suspend fun saveServerList(list: List<ServerConfig>) {
-        val raw = list.joinToString("\n") { "${it.name}||${it.url}||${it.token}" }
+        val raw = list.joinToString("\n") { "${it.name}\t${it.url}\t${it.token}" }
         context.dataStore.edit { prefs ->
             prefs[KEY_SERVER_LIST] = raw
         }

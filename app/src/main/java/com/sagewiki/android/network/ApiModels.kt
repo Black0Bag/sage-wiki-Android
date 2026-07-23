@@ -270,3 +270,47 @@ data class GraphEdge(
     val target: String,
     val label: String?
 )
+
+// ============ 搜索 API ============
+
+data class SearchResponse(
+    val results: List<SearchResult>? = null,
+    val total: Int? = null,
+    val query: String? = null
+)
+
+data class SearchResult(
+    val concept: String? = null,
+    val title: String? = null,
+    val content: String? = null,
+    val snippet: String? = null,
+    val score: Float? = null,
+    val sources: List<String>? = null,
+    val path: String? = null
+)
+
+// ============ LLM 查询 API ============
+
+data class QueryRequest(
+    val q: String,
+    @SerializedName("context_max_tokens") val contextMaxTokens: Int? = null
+)
+
+data class QueryResponse(
+    val answer: String? = null,
+    val sources: List<String>? = null,
+    val error: String? = null
+)
+
+// ============ 来源追溯 API ============
+
+data class ProvenanceResponse(
+    val article: String? = null,
+    val sources: List<ProvenanceSource>? = null
+)
+
+data class ProvenanceSource(
+    val path: String? = null,
+    val type: String? = null,
+    val relevance: String? = null
+)

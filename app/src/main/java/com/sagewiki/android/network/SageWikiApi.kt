@@ -72,6 +72,27 @@ interface SageWikiApi {
     @GET("api/graph")
     suspend fun getGraph(): GraphResponse
 
+    // ============ 搜索 API ============
+
+    @GET("api/search")
+    suspend fun search(
+        @Query("q") query: String,
+        @Query("limit") limit: Int? = null
+    ): SearchResponse
+
+    // ============ LLM 查询 API ============
+
+    @POST("api/query")
+    suspend fun query(@Body body: QueryRequest): QueryResponse
+
+    // ============ 来源追溯 API ============
+
+    @GET("api/provenance")
+    suspend fun getProvenance(
+        @Query("article") article: String? = null,
+        @Query("source") source: String? = null
+    ): ProvenanceResponse
+
     companion object {
         fun create(baseUrl: String, token: String? = null): SageWikiApi {
             val logging = HttpLoggingInterceptor().apply {
