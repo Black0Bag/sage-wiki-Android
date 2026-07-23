@@ -1,9 +1,11 @@
 package com.sagewiki.android.network
 
+import com.google.gson.Gson
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -14,6 +16,12 @@ interface SageWikiApi {
 
     @GET("api/health")
     suspend fun health(): HealthResponse
+
+    @GET("api/status")
+    suspend fun getStatus(): StatusResponse
+
+    @GET("api/sysinfo")
+    suspend fun getSysInfo(): SysInfoResponse
 
     @GET("api/config")
     suspend fun getConfig(): ConfigResponse
@@ -29,19 +37,19 @@ interface SageWikiApi {
     suspend fun uploadSource(@Part file: MultipartBody.Part): UploadResponse
 
     @POST("api/compile")
-    suspend fun compile(): CompileResponse
+    suspend fun compile(@Query("source") source: String? = null): CompileResponse
 
     @POST("api/share")
     suspend fun share(@Body body: ShareRequest): ShareResponse
 
     @GET("api/articles/{path}")
-    suspend fun getArticle(@Path("path", encoded = true) path: String): ArticleResponse
+    suspend fun getArticle(@Path("path") path: String): ArticleResponse
 
     @PUT("api/article")
     suspend fun writeArticle(@Body body: ArticleWriteRequest): Map<String, Any>
 
     @GET("api/sources/raw/{name}")
-    suspend fun getSourceRaw(@Path("name", encoded = true) name: String): okhttp3.ResponseBody
+    suspend fun getSourceRaw(@Path("name") name: String): okhttp3.ResponseBody
 
     @PUT("api/sources/update")
     suspend fun updateSource(@Body body: SourceUpdateRequest): Map<String, Any>
@@ -54,6 +62,15 @@ interface SageWikiApi {
 
     @GET("api/models")
     suspend fun getModels(@Query("fetch") fetch: Boolean = false): ModelsFetchResponse
+
+    @POST("api/models/test")
+    suspend fun testModel(@Body body: ModelTestRequest): ModelTestResponse
+
+    @GET("api/tree")
+    suspend fun getTree(): Map<String, Any>
+
+    @GET("api/graph")
+    suspend fun getGraph(): GraphResponse
 
     companion object {
         fun create(baseUrl: String, token: String? = null): SageWikiApi {
@@ -70,9 +87,9 @@ interface SageWikiApi {
                     chain.proceed(request.build())
                 }
                 .addInterceptor(logging)
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(60, TimeUnit.SECONDS)
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
                 .build()
 
             val url = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
@@ -85,8 +102,4 @@ interface SageWikiApi {
                 .create(SageWikiApi::class.java)
         }
     }
-}
-
-fun SageWikiApi.baseUrl(): String {
-    return ""
 }

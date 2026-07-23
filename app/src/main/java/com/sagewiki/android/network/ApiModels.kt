@@ -2,6 +2,8 @@ package com.sagewiki.android.network
 
 import com.google.gson.annotations.SerializedName
 
+// ========== 原有模型 ==========
+
 data class HealthResponse(
     val status: String,
     val project: String?,
@@ -69,6 +71,8 @@ data class SourceUpdateRequest(
     val content: String
 )
 
+// ========== 配置模型 ==========
+
 data class ConfigResponse(
     val project: String?,
     val description: String?,
@@ -86,9 +90,9 @@ data class ConfigResponse(
 
 data class ApiConfigResponse(
     val provider: String?,
-    val api_key: String?,
-    val base_url: String?,
-    val rate_limit: Int?
+    @SerializedName("api_key") val apiKey: String?,
+    @SerializedName("base_url") val baseUrl: String?,
+    @SerializedName("rate_limit") val rateLimit: Int?
 )
 
 data class ModelsConfigResponse(
@@ -103,19 +107,19 @@ data class EmbedConfigResponse(
     val provider: String?,
     val model: String?,
     val dimensions: Int?,
-    val base_url: String?,
-    val rate_limit: Int?
+    @SerializedName("base_url") val baseUrl: String?,
+    @SerializedName("rate_limit") val rateLimit: Int?
 )
 
 data class CompilerConfigResponse(
-    val max_parallel: Int?,
-    val summary_max_tokens: Int?,
-    val article_max_tokens: Int?,
+    @SerializedName("max_parallel") val maxParallel: Int?,
+    @SerializedName("summary_max_tokens") val summaryMaxTokens: Int?,
+    @SerializedName("article_max_tokens") val articleMaxTokens: Int?,
     val mode: String?
 )
 
 data class SearchConfigResponse(
-    val default_limit: Int?
+    @SerializedName("default_limit") val defaultLimit: Int?
 )
 
 data class ServeConfigResponse(
@@ -125,11 +129,22 @@ data class ServeConfigResponse(
 data class ConfigUpdateRequest(
     val project: String? = null,
     val language: String? = null,
-    val llm_model: String? = null,
-    val embedding_model: String? = null,
+    @SerializedName("llm_model") val llmModel: String? = null,
+    @SerializedName("extract_model") val extractModel: String? = null,
+    @SerializedName("write_model") val writeModel: String? = null,
+    @SerializedName("lint_model") val lintModel: String? = null,
+    @SerializedName("query_model") val queryModel: String? = null,
+    @SerializedName("embedding_model") val embeddingModel: String? = null,
     val output: String? = null,
-    val api_key: String? = null,
-    val api_base: String? = null
+    @SerializedName("api_key") val apiKey: String? = null,
+    @SerializedName("api_base") val apiBase: String? = null,
+    @SerializedName("embedding_api_key") val embeddingApiKey: String? = null,
+    @SerializedName("embedding_api_base") val embeddingApiBase: String? = null
+)
+
+data class ConfigUpdateResponse(
+    val status: String?,
+    val project: String?
 )
 
 data class ModelsFetchResponse(
@@ -142,11 +157,6 @@ data class ModelInfo(
     val `object`: String?
 )
 
-data class ConfigUpdateResponse(
-    val status: String?,
-    val project: String?
-)
-
 data class ManifestResponse(
     val concepts: Map<String, ConceptInfo>?,
     val summaries: List<String>?,
@@ -157,4 +167,105 @@ data class ConceptInfo(
     @SerializedName("article_path") val articlePath: String?,
     val tier: Int?,
     val source: String?
+)
+
+// ========== v1.1.0 新增模型 ==========
+
+data class StatusResponse(
+    val project: String?,
+    val entries: Int?,
+    val vectors: Int?,
+    val dimensions: Int?,
+    val entities: Int?,
+    val relations: Int?
+)
+
+data class SysInfoResponse(
+    val go: GoRuntimeInfo?,
+    val memory: MemoryInfo?,
+    val disk: DiskInfo?,
+    val load: LoadInfo?,
+    val temperatures: List<TempInfo>?,
+    val uptime: Long?,
+    @SerializedName("cpu_model") val cpuModel: String?,
+    val hostname: String?,
+    val version: String?
+)
+
+data class GoRuntimeInfo(
+    val version: String?,
+    val goroutines: Int?,
+    @SerializedName("num_cpu") val numCPU: Int?,
+    @SerializedName("mem_alloc") val memAlloc: Long?,
+    @SerializedName("mem_sys") val memSys: Long?,
+    @SerializedName("mem_heap") val memHeap: Long?,
+    @SerializedName("gc_pause_ns") val gcPauseNs: Long?,
+    @SerializedName("num_gc") val numGC: Int?
+)
+
+data class MemoryInfo(
+    val total: Long?,
+    val used: Long?,
+    val free: Long?,
+    val buffer: Long?,
+    @SerializedName("usage_percent") val usagePercent: Double?
+)
+
+data class DiskInfo(
+    val total: Long?,
+    val used: Long?,
+    val free: Long?,
+    @SerializedName("usage_percent") val usagePercent: Double?
+)
+
+data class LoadInfo(
+    @SerializedName("load_1") val load1: Double?,
+    @SerializedName("load_5") val load5: Double?,
+    @SerializedName("load_15") val load15: Double?
+)
+
+data class TempInfo(
+    val zone: Int?,
+    val type: String?,
+    @SerializedName("temp_c") val tempC: Double?,
+    @SerializedName("temp_raw") val tempRaw: Int?
+)
+
+data class ModelTestRequest(
+    val provider: String? = null,
+    @SerializedName("base_url") val baseUrl: String? = null,
+    @SerializedName("api_key") val apiKey: String? = null,
+    val model: String? = null
+)
+
+data class ModelTestResponse(
+    val success: Boolean,
+    val model: String?,
+    @SerializedName("latency_ms") val latencyMs: Long?,
+    @SerializedName("status_code") val statusCode: Int?,
+    val error: String?
+)
+
+data class TreeNode(
+    val name: String,
+    val type: String?,
+    val path: String?,
+    val children: List<TreeNode>?
+)
+
+data class GraphResponse(
+    val nodes: List<GraphNode>?,
+    val edges: List<GraphEdge>?
+)
+
+data class GraphNode(
+    val id: String,
+    val label: String?,
+    val type: String?
+)
+
+data class GraphEdge(
+    val source: String,
+    val target: String,
+    val label: String?
 )

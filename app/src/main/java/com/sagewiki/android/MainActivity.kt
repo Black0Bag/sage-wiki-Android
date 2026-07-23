@@ -5,16 +5,19 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.sagewiki.android.data.AppSettings
-import com.sagewiki.android.network.ShareRequest
-import com.sagewiki.android.ui.main.MainScreen
+import com.sagewiki.android.ui.about.AboutScreen
+import com.sagewiki.android.ui.dashboard.DashboardScreen
+import com.sagewiki.android.ui.library.LibraryScreen
+import com.sagewiki.android.ui.settings.SettingsScreen
 import com.sagewiki.android.ui.setup.SetupScreen
 import com.sagewiki.android.ui.theme.SageWikiTheme
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -35,19 +38,15 @@ class MainActivity : ComponentActivity() {
                     var setupDone by remember { mutableStateOf(false) }
 
                     LaunchedEffect(Unit) {
-                        settings.isSetupDone.collect { done ->
-                            setupDone = done
+                        settings.hasServers.collect { has ->
+                            setupDone = has
                         }
                     }
 
                     if (!setupDone) {
-                        SetupScreen(
-                            onSaved = { setupDone = true }
-                        )
+                        SetupScreen(onSaved = { setupDone = true })
                     } else {
-                        MainScreen(
-                            appSettings = settings
-                        )
+                        AppMainScreen(appSettings = settings)
                     }
                 }
             }
@@ -76,14 +75,85 @@ class MainActivity : ComponentActivity() {
     private fun extractUrl(text: String?): String? {
         if (text == null) return null
         val uri = Uri.parse(text.trim())
-        return if (uri.scheme != null && (uri.scheme == "http" || uri.scheme == "https")) {
-            uri.toString()
-        } else null
+        return if (uri.scheme != null && (uri.scheme == "http" || uri.scheme == "https")) uri.toString() else null
     }
 
     data class ShareData(val title: String, val text: String, val url: String)
 
     companion object {
         var pendingShare: ShareData? = null
+    }
+}
+
+// === 三屏导航 ===
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppMainScreen(appSettings: AppSettings) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var showAbout by remember { mutableStateOf(false) }
+
+    if (showAbout) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopAppBar(
+                title = { Text("关于") },
+                navigationIcon = {
+                    IconButton(onClick = { showAbout = false }) {
+                        Icon(Icons.Filled.ArrowBack, "返回")
+                    }
+                }
+            )
+            AboutScreen()
+        }
+        return
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(when (selectedTab) {
+                        0 -> "仪表板"
+                        1 -> "文件库"
+                        else -> "配置"
+                    })
+                },
+                actions = {
+                    IconButton(onClick = { showAbout = true }) {
+                        Icon(Icons.Filled.Info, "关于")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Filled.Home, "仪表板") },
+                    label = { Text("仪表板") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Icon(Icons.Filled.Folder, "文件库") },
+                    label = { Text("文件库") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Filled.Settings, "配置") },
+                    label = { Text("配置") }
+                )
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            when (selectedTab) {
+                0 -> DashboardScreen(appSettings = appSettings)
+                1 -> LibraryScreen(appSettings = appSettings)
+                2 -> SettingsScreen(appSettings = appSettings)
+            }
+        }
     }
 }
