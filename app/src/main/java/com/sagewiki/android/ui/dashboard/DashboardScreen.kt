@@ -24,28 +24,34 @@ fun DashboardScreen(appSettings: AppSettings) {
     val healthOk = remember { mutableStateOf<Boolean?>(null) }
     val isLoading = remember { mutableStateOf(true) }
     val errorMsg = remember { mutableStateOf<String?>(null) }
+    val refreshKey = remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshKey.value) {
         serverUrl.value = appSettings.getServerUrl()
         token.value = appSettings.getBearerToken()
         val api = SageWikiApi.create(serverUrl.value, token.value)
+        isLoading.value = true
+        try {
+            val h = api.health()
+            healthOk.value = h.status == "healthy"
+            val s = api.getStatus()
+            status.value = s
+            val src = api.getSources()
+            sourcesTotal.value = src.total
+            val si = api.getSysInfo()
+            sysInfo.value = si
+            errorMsg.value = null
+        } catch (e: Exception) {
+            errorMsg.value = e.message ?: "未知错误"
+        }
+        isLoading.value = false
+    }
+
+    // 每15秒自动刷新
+    LaunchedEffect(refreshKey.value) {
         while (true) {
-            try {
-                val h = api.health()
-                healthOk.value = h.status == "healthy"
-                val s = api.getStatus()
-                status.value = s
-                val src = api.getSources()
-                sourcesTotal.value = src.total
-                val si = api.getSysInfo()
-                sysInfo.value = si
-                errorMsg.value = null
-                isLoading.value = false
-            } catch (e: Exception) {
-                errorMsg.value = e.message ?: "未知错误"
-                isLoading.value = false
-            }
-            delay(2000)
+            kotlinx.coroutines.delay(15_000)
+            refreshKey.value++
         }
     }
 
@@ -82,8 +88,7 @@ fun DashboardScreen(appSettings: AppSettings) {
                     Text(err, style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(onClick = {
-                        isLoading.value = true
-                        errorMsg.value = null
+                        refreshKey.value++
                     }) { Text("重试") }
                 }
             }

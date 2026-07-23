@@ -17,6 +17,9 @@ import com.sagewiki.android.ui.dashboard.DashboardScreen
 import com.sagewiki.android.ui.library.LibraryScreen
 import com.sagewiki.android.ui.settings.SettingsScreen
 import com.sagewiki.android.ui.setup.SetupScreen
+import com.sagewiki.android.ui.search.SearchScreen
+import com.sagewiki.android.ui.browse.BrowseScreen
+import com.sagewiki.android.ui.qa.QAScreen
 import com.sagewiki.android.ui.theme.SageWikiTheme
 
 class MainActivity : ComponentActivity() {
@@ -85,7 +88,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// === 三屏导航 ===
+// === 六屏导航 ===
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +118,9 @@ fun AppMainScreen(appSettings: AppSettings) {
                     Text(when (selectedTab) {
                         0 -> "仪表板"
                         1 -> "文件库"
+                        2 -> "搜索"
+                        3 -> "浏览"
+                        4 -> "问答"
                         else -> "配置"
                     })
                 },
@@ -142,6 +148,24 @@ fun AppMainScreen(appSettings: AppSettings) {
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Filled.Search, "搜索") },
+                    label = { Text("搜索") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    icon = { Icon(Icons.Filled.Article, "浏览") },
+                    label = { Text("浏览") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    icon = { Icon(Icons.Filled.QuestionAnswer, "问答") },
+                    label = { Text("问答") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 5,
+                    onClick = { selectedTab = 5 },
                     icon = { Icon(Icons.Filled.Settings, "配置") },
                     label = { Text("配置") }
                 )
@@ -152,7 +176,10 @@ fun AppMainScreen(appSettings: AppSettings) {
             when (selectedTab) {
                 0 -> DashboardScreen(appSettings = appSettings)
                 1 -> LibraryScreen(appSettings = appSettings)
-                2 -> SettingsScreen(appSettings = appSettings)
+                2 -> SearchScreen(appSettings = appSettings)
+                3 -> BrowseScreen(appSettings = appSettings)
+                4 -> QAScreen(appSettings = appSettings)
+                5 -> SettingsScreen(appSettings = appSettings)
             }
         }
     }

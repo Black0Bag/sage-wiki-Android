@@ -106,22 +106,20 @@ fun SettingsScreen(appSettings: AppSettings) {
             token.value = appSettings.getBearerToken()
             api.value = SageWikiApi.create(serverUrl.value, token.value)
             activeServer.value = name
-            // re-init config
-            scope.launch {
-                try {
-                    val cfg = api.value?.getConfig()
-                    cfg?.let { c ->
-                        llmModel.value = c.models?.summarize ?: ""
-                        extractModel.value = c.models?.extract ?: ""
-                        writeModel.value = c.models?.write ?: ""
-                        lintModel.value = c.models?.lint ?: ""
-                        queryModel.value = c.models?.query ?: ""
-                        embeddingModel.value = c.embed?.model ?: ""
-                        apiKey.value = c.api?.apiKey ?: ""
-                        apiBaseUrl.value = c.api?.baseUrl ?: ""
-                    }
-                } catch (_: Exception) {}
-            }
+            // re-init config（移到同一个协程，取消嵌套 launch）
+            try {
+                val cfg = api.value?.getConfig()
+                cfg?.let { c ->
+                    llmModel.value = c.models?.summarize ?: ""
+                    extractModel.value = c.models?.extract ?: ""
+                    writeModel.value = c.models?.write ?: ""
+                    lintModel.value = c.models?.lint ?: ""
+                    queryModel.value = c.models?.query ?: ""
+                    embeddingModel.value = c.embed?.model ?: ""
+                    apiKey.value = c.api?.apiKey ?: ""
+                    apiBaseUrl.value = c.api?.baseUrl ?: ""
+                }
+            } catch (_: Exception) {}
         }
     }
 

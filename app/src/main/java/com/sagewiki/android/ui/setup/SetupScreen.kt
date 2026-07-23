@@ -188,7 +188,7 @@ fun SetupScreen(onSaved: () -> Unit) {
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = testSuccess && !saving
+                    enabled = !saving
                 ) {
                     if (saving) {
                         CircularProgressIndicator(

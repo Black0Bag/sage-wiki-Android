@@ -113,7 +113,7 @@ fun LibraryScreen(appSettings: AppSettings) {
         }
 
         when (selectedTab) {
-            0 -> SourceTab(sources, serverUrl.value, token.value, { filePickerLauncher.launch("image/*") }) { loadData() }
+            0 -> SourceTab(sources, serverUrl.value, token.value, { filePickerLauncher.launch("*/*") }) { loadData() }
             1 -> CompilationTab(manifest.value)
             2 -> GraphTab(graph.value)
         }
