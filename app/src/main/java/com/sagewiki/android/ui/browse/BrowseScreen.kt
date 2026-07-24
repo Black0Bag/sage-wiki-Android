@@ -19,7 +19,6 @@ import com.sagewiki.android.network.*
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
-import com.mikepenz.markdown.MarkdownDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
