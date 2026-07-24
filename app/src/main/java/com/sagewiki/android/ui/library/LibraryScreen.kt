@@ -200,7 +200,7 @@ private fun GraphTab(graph: GraphResponse?) {
             item {
                 ListItem(
                     headlineContent = { Text(node.id, fontWeight = FontWeight.Medium) },
-                    supportingContent = { Text("类型: ${node.type ?: "—"} · ${node.label ?: ""}") }
+                    supportingContent = { Text("类型: ${node.type ?: "—"} · ${node.name ?: ""}") }
                 )
             }
         }
@@ -211,7 +211,7 @@ private fun GraphTab(graph: GraphResponse?) {
                 item {
                     ListItem(
                         headlineContent = { Text("${edge.source} → ${edge.target}", fontWeight = FontWeight.Medium) },
-                        supportingContent = { Text(edge.label ?: "") }
+                        supportingContent = { Text(edge.relation ?: "") }
                     )
                 }
             }

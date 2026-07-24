@@ -193,7 +193,7 @@ data class SysInfoResponse(
 data class GoRuntimeInfo(
     val version: String?,
     val goroutines: Int?,
-    @SerializedName("num_cpu") val numCPU: Int?,
+    val numCPU: Int?,
     @SerializedName("mem_alloc") val memAlloc: Long?,
     @SerializedName("mem_sys") val memSys: Long?,
     @SerializedName("mem_heap") val memHeap: Long?,
@@ -251,14 +251,15 @@ data class GraphResponse(
 
 data class GraphNode(
     val id: String,
-    val label: String?,
-    val type: String?
+    val name: String? = null,
+    val type: String? = null,
+    val connections: Int? = null
 )
 
 data class GraphEdge(
     val source: String,
     val target: String,
-    val label: String?
+    val relation: String? = null
 )
 
 // ============ 搜索 API ============
@@ -270,20 +271,17 @@ data class SearchResponse(
 )
 
 data class SearchResult(
-    val concept: String? = null,
-    val title: String? = null,
-    val content: String? = null,
+    val id: String? = null,
+    val path: String? = null,
     val snippet: String? = null,
-    val score: Float? = null,
-    val sources: List<String>? = null,
-    val path: String? = null
+    val score: Float? = null
 )
 
 // ============ LLM 查询 API ============
 
 data class QueryRequest(
-    val q: String,
-    @SerializedName("context_max_tokens") val contextMaxTokens: Int? = null
+    val question: String,
+    @SerializedName("top_k") val topK: Int? = null
 )
 
 data class QueryResponse(

@@ -102,7 +102,7 @@ fun SearchScreen(appSettings: AppSettings) {
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = result.concept ?: result.title ?: "未知",
+                            text = result.id ?: result.path ?: "未知",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )

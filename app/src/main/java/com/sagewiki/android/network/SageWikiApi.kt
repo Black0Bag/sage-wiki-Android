@@ -77,9 +77,12 @@ interface SageWikiApi {
     ): SearchResponse
 
     // ============ LLM 查询 API ============
+    // Backend returns SSE (text/event-stream), not JSON.
+    // We get the raw ResponseBody and parse SSE events in the Repository.
 
     @POST("api/query")
-    suspend fun query(@Body body: QueryRequest): QueryResponse
+    @Streaming
+    suspend fun query(@Body body: QueryRequest): okhttp3.ResponseBody
 
     // ============ 来源追溯 API ============
 
