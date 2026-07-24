@@ -21,7 +21,7 @@ import com.sagewiki.android.network.*
 @Composable
 fun BrowseScreen(appSettings: AppSettings) {
     val viewModel: BrowseViewModel = viewModel(
-        factory = BrowseViewModelFactory(appSettings)
+        factory = BrowseViewModel.Factory(appSettings)
     )
 
     val conceptList by viewModel.conceptList.collectAsState()

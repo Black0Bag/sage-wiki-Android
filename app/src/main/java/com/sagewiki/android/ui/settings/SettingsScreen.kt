@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -311,7 +312,7 @@ fun SettingsScreen(appSettings: AppSettings) {
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        appSettings.addServer(newServerName.value, newServerUrl.value, newServerToken.value)
+                        appSettings.saveServer(newServerName.value, newServerUrl.value, newServerToken.value)
                         newServerName.value = ""
                         newServerUrl.value = ""
                         newServerToken.value = ""

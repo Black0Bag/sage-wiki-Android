@@ -1,6 +1,7 @@
 package com.sagewiki.android.ui.browse
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.SageWikiApi
@@ -151,5 +152,24 @@ class BrowseViewModel(
         val serverUrl = appSettings.getServerUrl()
         val token = appSettings.getBearerToken()
         _api.value = SageWikiApi.create(serverUrl, token)
+    }
+
+    // ── ViewModelProvider.Factory ──────────────────────────────
+
+    /**
+     * Factory for creating [BrowseViewModel] instances with an [AppSettings]
+     * dependency. Used in Composable via:
+     * `viewModel(factory = BrowseViewModelFactory(appSettings))`
+     */
+    class Factory(
+        private val appSettings: AppSettings
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(BrowseViewModel::class.java)) {
+                return BrowseViewModel(appSettings) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        }
     }
 }
