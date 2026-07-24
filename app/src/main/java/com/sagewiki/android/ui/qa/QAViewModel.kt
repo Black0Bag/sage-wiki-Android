@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * UI state for the QA (问答) screen.
@@ -21,6 +22,23 @@ data class QaUiState(
     val inputText: String = "",
     val isLoading: Boolean = false,
     val error: String? = null
+)
+
+/**
+ * A single chat message in the QA conversation.
+ *
+ * @param id         Unique identifier for the message.
+ * @param role       "user" or "assistant".
+ * @param content    The message text (streamed for assistant responses).
+ * @param isStreaming  True while the assistant message is still being streamed.
+ * @param sources    Optional list of source document paths from the RAG backend.
+ */
+data class QaMessage(
+    val id: String = UUID.randomUUID().toString(),
+    val role: String, // "user" or "assistant"
+    val content: String,
+    val isStreaming: Boolean = false,
+    val sources: List<String>? = null
 )
 
 /**
@@ -79,10 +97,20 @@ class QAViewModel : ViewModel() {
         if (question.isBlank()) return
         val a = api ?: return
 
-        // Add the user message and mark loading
+        // Create the user message
+        val userMsg = QaMessage(role = "user", content = question)
+        // Create a placeholder assistant message for streaming updates
+        val assistantMsg = QaMessage(
+            role = "assistant",
+            content = "",
+            isStreaming = true
+        )
+        val assistantMsgId = assistantMsg.id
+
+        // Add both user message and placeholder assistant message; mark loading
         _uiState.update { state ->
             state.copy(
-                messages = state.messages + QaMessage(role = "user", content = question),
+                messages = state.messages + userMsg + assistantMsg,
                 inputText = "",
                 isLoading = true,
                 error = null
@@ -99,15 +127,6 @@ class QAViewModel : ViewModel() {
                 var sources: List<String>? = null
                 var eventType = ""
 
-                // Index of the placeholder assistant message we'll update as tokens arrive
-                val assistantMsgIndex = _uiState.value.messages.size
-                // Insert a placeholder assistant message for streaming updates
-                _uiState.update { state ->
-                    state.copy(
-                        messages = state.messages + QaMessage(role = "assistant", content = "")
-                    )
-                }
-
                 var line = reader.readLine()
                 while (line != null) {
                     if (line.startsWith("event:")) {
@@ -123,8 +142,8 @@ class QAViewModel : ViewModel() {
                                     // Update the assistant message for streaming effect
                                     _uiState.update { state ->
                                         state.copy(
-                                            messages = state.messages.mapIndexed { index, msg ->
-                                                if (index == assistantMsgIndex) {
+                                            messages = state.messages.map { msg ->
+                                                if (msg.id == assistantMsgId) {
                                                     msg.copy(content = answer.toString())
                                                 } else {
                                                     msg
@@ -134,14 +153,18 @@ class QAViewModel : ViewModel() {
                                     }
                                 }
                             }
+                            
                             "error" -> {
                                 // data is {"error":"..."}
                                 val error = parseSseError(data)
                                 _uiState.update { state ->
                                     state.copy(
-                                        messages = state.messages.mapIndexed { index, msg ->
-                                            if (index == assistantMsgIndex) {
-                                                msg.copy(content = "❌ ${error ?: "未知错误"}")
+                                        messages = state.messages.map { msg ->
+                                            if (msg.id == assistantMsgId) {
+                                                msg.copy(
+                                                    content = "❌ ${error ?: "未知错误"}",
+                                                    isStreaming = false
+                                                )
                                             } else {
                                                 msg
                                             }
@@ -151,19 +174,34 @@ class QAViewModel : ViewModel() {
                                     )
                                 }
                             }
+                            
                             "sources" -> {
                                 // data is {"paths":["..."]}
                                 sources = parseSseSources(data)
+                                // Update the assistant message's sources as soon as they arrive
+                                _uiState.update { state ->
+                                    state.copy(
+                                        messages = state.messages.map { msg ->
+                                            if (msg.id == assistantMsgId) {
+                                                msg.copy(sources = sources)
+                                            } else {
+                                                msg
+                                            }
+                                        }
+                                    )
+                                }
                             }
+                            
                             "done" -> {
                                 // Stream finished — finalize the assistant message with sources
                                 _uiState.update { state ->
                                     state.copy(
-                                        messages = state.messages.mapIndexed { index, msg ->
-                                            if (index == assistantMsgIndex) {
+                                        messages = state.messages.map { msg ->
+                                            if (msg.id == assistantMsgId) {
                                                 msg.copy(
                                                     content = answer.toString()
                                                         .ifEmpty { "无法获取回答" },
+                                                    isStreaming = false,
                                                     sources = sources
                                                 )
                                             } else {
@@ -183,10 +221,11 @@ class QAViewModel : ViewModel() {
                 if (_uiState.value.isLoading) {
                     _uiState.update { state ->
                         state.copy(
-                            messages = state.messages.mapIndexed { index, msg ->
-                                if (index == assistantMsgIndex) {
+                            messages = state.messages.map { msg ->
+                                if (msg.id == assistantMsgId) {
                                     msg.copy(
                                         content = answer.toString().ifEmpty { "无法获取回答" },
+                                        isStreaming = false,
                                         sources = sources
                                     )
                                 } else {
@@ -201,10 +240,16 @@ class QAViewModel : ViewModel() {
                 val errorMsg = "查询失败: ${e.message}"
                 _uiState.update { state ->
                     state.copy(
-                        messages = state.messages + QaMessage(
-                            role = "assistant",
-                            content = "❌ $errorMsg"
-                        ),
+                        messages = state.messages.map { msg ->
+                            if (msg.id == assistantMsgId) {
+                                msg.copy(
+                                    content = "❌ $errorMsg",
+                                    isStreaming = false
+                                )
+                            } else {
+                                msg
+                            }
+                        },
                         isLoading = false,
                         error = errorMsg
                     )
@@ -250,7 +295,7 @@ class QAViewModel : ViewModel() {
         }
     }
 
-    /** Clear the entire conversation. */
+    /** Clear the entire conversation history. */
     fun clearMessages() {
         _uiState.update { it.copy(messages = emptyList(), error = null) }
     }

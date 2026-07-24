@@ -36,7 +36,16 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            SageWikiTheme {
+            // Collect dark theme preference; default to true for backward compatibility
+            var isDarkTheme by remember { mutableStateOf(true) }
+
+            LaunchedEffect(Unit) {
+                settings.isDarkTheme.collect { dark ->
+                    isDarkTheme = dark
+                }
+            }
+
+            SageWikiTheme(darkTheme = isDarkTheme) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var setupDone by remember { mutableStateOf(false) }
 

@@ -18,6 +18,7 @@ class AppSettings(private val context: Context) {
         private val KEY_SETUP_DONE = stringPreferencesKey("setup_done")
         private val KEY_SERVER_LIST = stringPreferencesKey("server_list")
         private val KEY_ACTIVE_SERVER = stringPreferencesKey("active_server")
+        private val KEY_DARK_THEME = stringPreferencesKey("dark_theme")
     }
 
     val serverUrl: Flow<String> = context.dataStore.data.map { prefs ->
@@ -34,6 +35,11 @@ class AppSettings(private val context: Context) {
 
     val activeServerName: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_ACTIVE_SERVER] ?: ""
+    }
+
+    val isDarkTheme: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        // Default to true (dark theme) for backward compatibility
+        prefs[KEY_DARK_THEME] != "false"
     }
 
     suspend fun getServerList(): List<ServerConfig> {
@@ -92,6 +98,12 @@ class AppSettings(private val context: Context) {
 
     suspend fun clearAll() {
         context.dataStore.edit { it.clear() }
+    }
+
+    suspend fun setDarkTheme(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_DARK_THEME] = if (enabled) "true" else "false"
+        }
     }
 
     suspend fun getServerUrl(): String = serverUrl.first()

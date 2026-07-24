@@ -27,6 +27,9 @@ fun SettingsScreen(appSettings: AppSettings) {
     val newServerUrl = remember { mutableStateOf("") }
     val newServerToken = remember { mutableStateOf("") }
 
+    // --- Dark theme toggle state ---
+    var isDarkTheme by remember { mutableStateOf(true) }
+
     // === Snackbar ===
     LaunchedEffect(viewModel.snackMsg) {
         viewModel.snackMsg?.let {
@@ -38,6 +41,10 @@ fun SettingsScreen(appSettings: AppSettings) {
     // 初始化
     LaunchedEffect(Unit) {
         viewModel.initSettings()
+        // Collect current dark theme setting
+        appSettings.isDarkTheme.collect { dark ->
+            isDarkTheme = dark
+        }
     }
 
     if (viewModel.isLoading) {
@@ -91,6 +98,37 @@ fun SettingsScreen(appSettings: AppSettings) {
                         OutlinedButton(onClick = { viewModel.deleteCurrentServer() }) { Text("删除当前") }
                     }
                 }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // === 外观设置：深色/浅色主题 ===
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("深色主题", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "切换深色或浅色外观",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = isDarkTheme,
+                    onCheckedChange = { newValue ->
+                        isDarkTheme = newValue
+                        scope.launch {
+                            appSettings.setDarkTheme(newValue)
+                        }
+                    }
+                )
             }
         }
 

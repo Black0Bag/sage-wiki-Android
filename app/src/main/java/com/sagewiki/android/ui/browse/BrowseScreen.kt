@@ -16,6 +16,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.*
+import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
+import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.MarkdownDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,9 +63,10 @@ fun BrowseScreen(appSettings: AppSettings) {
                         contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
                         item {
-                            Text(
-                                text = content,
-                                style = MaterialTheme.typography.bodyMedium
+                            Markdown(
+                                content = content,
+                                colors = markdownColor(),
+                                typography = markdownTypography()
                             )
                         }
                     }
