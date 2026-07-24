@@ -10,52 +10,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.*
-import kotlinx.coroutines.delay
 
 @Composable
 fun DashboardScreen(appSettings: AppSettings) {
-    val serverUrl = remember { mutableStateOf("") }
-    val token = remember { mutableStateOf("") }
-    val status = remember { mutableStateOf<StatusResponse?>(null) }
-    val sysInfo = remember { mutableStateOf<SysInfoResponse?>(null) }
-    val sourcesTotal = remember { mutableStateOf(0) }
-    val healthOk = remember { mutableStateOf<Boolean?>(null) }
-    val isLoading = remember { mutableStateOf(true) }
-    val errorMsg = remember { mutableStateOf<String?>(null) }
-    val refreshKey = remember { mutableStateOf(0) }
+    val vm: DashboardViewModel = viewModel(
+        factory = DashboardViewModel.Factory(appSettings)
+    )
 
-    LaunchedEffect(refreshKey.value) {
-        serverUrl.value = appSettings.getServerUrl()
-        token.value = appSettings.getBearerToken()
-        val api = SageWikiApi.create(serverUrl.value, token.value)
-        isLoading.value = true
-        try {
-            val h = api.health()
-            healthOk.value = h.status == "healthy"
-            val s = api.getStatus()
-            status.value = s
-            val src = api.getSources()
-            sourcesTotal.value = src.total
-            val si = api.getSysInfo()
-            sysInfo.value = si
-            errorMsg.value = null
-        } catch (e: Exception) {
-            errorMsg.value = e.message ?: "未知错误"
-        }
-        isLoading.value = false
+    val serverUrl by vm.serverUrl.collectAsState()
+    val status by vm.status.collectAsState()
+    val sysInfo by vm.sysInfo.collectAsState()
+    val sourcesTotal by vm.sourcesTotal.collectAsState()
+    val healthOk by vm.healthOk.collectAsState()
+    val isLoading by vm.isLoading.collectAsState()
+    val errorMsg by vm.error.collectAsState()
+
+    // 首次进入时触发一次数据刷新
+    LaunchedEffect(Unit) {
+        vm.refresh()
     }
 
     // 每15秒自动刷新
-    LaunchedEffect(refreshKey.value) {
-        while (true) {
-            kotlinx.coroutines.delay(15_000)
-            refreshKey.value++
-        }
+    LaunchedEffect(Unit) {
+        vm.startAutoRefresh()
     }
 
-    if (isLoading.value) {
+    if (isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
@@ -70,7 +53,7 @@ fun DashboardScreen(appSettings: AppSettings) {
     ) {
         // 服务器URL
         Text(
-            text = serverUrl.value.ifBlank { "未连接" },
+            text = serverUrl.ifBlank { "未连接" },
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -79,7 +62,7 @@ fun DashboardScreen(appSettings: AppSettings) {
         Spacer(modifier = Modifier.height(8.dp))
 
         // 错误提示 + 重试
-        errorMsg.value?.let { err ->
+        errorMsg?.let { err ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
             ) {
@@ -88,7 +71,7 @@ fun DashboardScreen(appSettings: AppSettings) {
                     Text(err, style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(onClick = {
-                        refreshKey.value++
+                        vm.refresh()
                     }) { Text("重试") }
                 }
             }
@@ -101,11 +84,11 @@ fun DashboardScreen(appSettings: AppSettings) {
                 Text("知识库状态", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val s = status.value
+                val s = status
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     StatItem("项目", s?.project ?: "—")
-                    StatItem("健康", if (healthOk.value == true) "✅" else if (healthOk.value == false) "❌" else "—")
-                    StatItem("源文件", sourcesTotal.value.toString())
+                    StatItem("健康", if (healthOk == true) "✅" else if (healthOk == false) "❌" else "—")
+                    StatItem("源文件", sourcesTotal.toString())
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -129,7 +112,7 @@ fun DashboardScreen(appSettings: AppSettings) {
                 Text("宿主机状态", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val si = sysInfo.value
+                val si = sysInfo
 
                 // CPU 型号
                 if (!si?.cpuModel.isNullOrBlank()) {

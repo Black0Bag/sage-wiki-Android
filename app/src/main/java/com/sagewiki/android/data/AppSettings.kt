@@ -3,19 +3,12 @@ package com.sagewiki.android.data
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "sage_wiki_settings")
-
-data class ServerConfig(
-    val name: String,
-    val url: String,
-    val token: String
-)
 
 class AppSettings(private val context: Context) {
 

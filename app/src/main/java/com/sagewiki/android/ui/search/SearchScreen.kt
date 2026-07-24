@@ -12,80 +12,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
-import com.sagewiki.android.network.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 
 @Composable
 fun SearchScreen(appSettings: AppSettings) {
-    val scope = rememberCoroutineScope()
-    val serverUrl = remember { mutableStateOf("") }
-    val token = remember { mutableStateOf("") }
-    val api = remember { mutableStateOf<SageWikiApi?>(null) }
-
-    var query by remember { mutableStateOf("") }
-    val results = remember { mutableStateListOf<SearchResult>() }
-    val totalCount = remember { mutableStateOf<Int?>(null) }
-    val isLoading = remember { mutableStateOf(false) }
-    val errorMsg = remember { mutableStateOf<String?>(null) }
+    val viewModel: SearchViewModel = viewModel()
+    val state by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
-        serverUrl.value = appSettings.getServerUrl()
-        token.value = appSettings.getBearerToken()
-        api.value = SageWikiApi.create(serverUrl.value, token.value)
-    }
-
-    fun doSearch(q: String) {
-        if (q.isBlank()) return
-        val a = api.value ?: return
-        scope.launch {
-            isLoading.value = true
-            errorMsg.value = null
-            try {
-                val r = a.search(query = q, limit = 20)
-                results.clear()
-                r.results?.let { results.addAll(it) }
-                totalCount.value = r.total
-            } catch (e: Exception) {
-                errorMsg.value = "搜索失败: ${e.message}"
-                results.clear()
-                totalCount.value = null
-            }
-            isLoading.value = false
-        }
+        viewModel.init(appSettings)
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // 搜索栏
         OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
+            value = state.query,
+            onValueChange = { viewModel.updateQuery(it) },
             label = { Text("搜索知识库") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             trailingIcon = {
                 Row {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = {
-                            query = ""
-                            results.clear()
-                            totalCount.value = null
-                            errorMsg.value = null
-                        }) {
+                    if (state.query.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearSearch() }) {
                             Icon(Icons.Filled.Clear, "清除")
                         }
                     }
-                    IconButton(onClick = { doSearch(query) }) {
+                    IconButton(onClick = { viewModel.search(state.query) }) {
                         Icon(Icons.Filled.Search, "搜索")
                     }
                 }
             },
-            enabled = !isLoading.value
+            enabled = !state.isLoading
         )
 
         // 错误信息
-        errorMsg.value?.let { err ->
+        state.error?.let { err ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -95,9 +58,9 @@ fun SearchScreen(appSettings: AppSettings) {
         }
 
         // 结果统计
-        if (totalCount.value != null && results.isNotEmpty()) {
+        if (state.totalCount != null && state.results.isNotEmpty()) {
             Text(
-                "共 ${totalCount.value} 条结果",
+                "共 ${state.totalCount} 条结果",
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -105,7 +68,7 @@ fun SearchScreen(appSettings: AppSettings) {
         }
 
         // 加载中
-        if (isLoading.value) {
+        if (state.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -113,14 +76,14 @@ fun SearchScreen(appSettings: AppSettings) {
         }
 
         // 空状态
-        if (results.isEmpty() && query.isNotEmpty() && !isLoading.value) {
+        if (state.results.isEmpty() && state.hasSearched && !state.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("未找到相关结果", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             return@Column
         }
 
-        if (results.isEmpty()) {
+        if (state.results.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("输入关键词搜索知识库", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -132,7 +95,7 @@ fun SearchScreen(appSettings: AppSettings) {
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
-            items(results) { result ->
+            items(state.results) { result ->
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)

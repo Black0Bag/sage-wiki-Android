@@ -13,84 +13,47 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.*
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowseScreen(appSettings: AppSettings) {
-    val scope = rememberCoroutineScope()
-    val serverUrl = remember { mutableStateOf("") }
-    val token = remember { mutableStateOf("") }
-    val api = remember { mutableStateOf<SageWikiApi?>(null) }
+    val viewModel: BrowseViewModel = viewModel(
+        factory = BrowseViewModelFactory(appSettings)
+    )
 
-    val conceptList = remember { mutableStateListOf<String>() }
-    val selectedConcept = remember { mutableStateOf<String?>(null) }
-    val articleContent = remember { mutableStateOf<String?>(null) }
-    val isLoading = remember { mutableStateOf(false) }
-    val errorMsg = remember { mutableStateOf<String?>(null) }
-
-    // 初始化 API & 首次加载
-    LaunchedEffect(Unit) {
-        serverUrl.value = appSettings.getServerUrl()
-        token.value = appSettings.getBearerToken()
-        api.value = SageWikiApi.create(serverUrl.value, token.value)
-    }
-
-    // 加载概念列表（内联到 LaunchedEffect，通过 refreshKey 触发）
-    val refreshKey = remember { mutableStateOf(0) }
-    LaunchedEffect(refreshKey.value) {
-        if (api.value == null) return@LaunchedEffect
-        isLoading.value = true
-        errorMsg.value = null
-        try {
-            val tree = api.value!!.getTree()
-            conceptList.clear()
-            val conceptsMap = tree["concepts"]
-            if (conceptsMap is Map<*, *>) {
-                conceptsMap.keys.forEach { key ->
-                    conceptList.add(key.toString())
-                }
-            }
-            if (conceptList.isEmpty()) {
-                tree.keys.forEach { key ->
-                    conceptList.add(key)
-                }
-            }
-        } catch (e: Exception) {
-            errorMsg.value = "加载知识树失败: ${e.message}"
-        }
-        isLoading.value = false
-    }
+    val conceptList by viewModel.conceptList.collectAsState()
+    val selectedConcept by viewModel.selectedConcept.collectAsState()
+    val articleContent by viewModel.articleContent.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMsg by viewModel.error.collectAsState()
 
     // 阅读视图
-    if (selectedConcept.value != null) {
+    if (selectedConcept != null) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
                 title = {
                     Text(
-                        selectedConcept.value ?: "",
+                        selectedConcept ?: "",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        selectedConcept.value = null
-                        articleContent.value = null
-                    }) {
+                    IconButton(onClick = { viewModel.clearSelection() }) {
                         Icon(Icons.Filled.ArrowBack, "返回")
                     }
                 }
             )
 
-            if (isLoading.value) {
+            if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else {
-                articleContent.value?.let { content ->
+                articleContent?.let { content ->
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(16.dp),
                         contentPadding = PaddingValues(bottom = 80.dp)
@@ -120,24 +83,24 @@ fun BrowseScreen(appSettings: AppSettings) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            IconButton(onClick = { refreshKey.value++ }) {
+            IconButton(onClick = { viewModel.loadData() }) {
                 Icon(Icons.Filled.Refresh, "刷新")
             }
         }
 
-        errorMsg.value?.let { err ->
+        errorMsg?.let { err ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("⚠️ $err", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { refreshKey.value++ }) { Text("重试") }
+                    TextButton(onClick = { viewModel.loadData() }) { Text("重试") }
                 }
             }
         }
 
-        if (isLoading.value) {
+        if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -165,20 +128,7 @@ fun BrowseScreen(appSettings: AppSettings) {
                         Icon(Icons.Filled.ChevronRight, "查看")
                     },
                     modifier = Modifier.clickable {
-                        // 加载文章
-                        val a = api.value ?: return@clickable
-                        scope.launch {
-                            isLoading.value = true
-                            errorMsg.value = null
-                            selectedConcept.value = concept
-                            try {
-                                val art = a.getArticle(concept)
-                                articleContent.value = art.body
-                            } catch (e: Exception) {
-                                articleContent.value = "加载失败: ${e.message}"
-                            }
-                            isLoading.value = false
-                        }
+                        viewModel.loadArticle(concept)
                     }
                 )
             }

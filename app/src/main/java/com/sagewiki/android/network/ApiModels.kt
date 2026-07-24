@@ -61,11 +61,6 @@ data class ArticleWriteRequest(
     val content: String
 )
 
-data class ArticleDeleteResponse(
-    val status: String,
-    val path: String?
-)
-
 data class SourceUpdateRequest(
     val name: String,
     val content: String
@@ -140,7 +135,9 @@ data class ConfigUpdateRequest(
     @SerializedName("api_key") val apiKey: String? = null,
     @SerializedName("api_base") val apiBase: String? = null,
     @SerializedName("embedding_api_key") val embeddingApiKey: String? = null,
-    @SerializedName("embedding_api_base") val embeddingApiBase: String? = null
+    @SerializedName("embedding_base_url") val embeddingBaseUrl: String? = null,
+    @SerializedName("embedding_provider") val embeddingProvider: String? = null,
+    @SerializedName("embedding_dims") val embeddingDims: Int? = null
 )
 
 data class ConfigUpdateResponse(
@@ -245,13 +242,6 @@ data class ModelTestResponse(
     @SerializedName("latency_ms") val latencyMs: Long?,
     @SerializedName("status_code") val statusCode: Int?,
     val error: String?
-)
-
-data class TreeNode(
-    val name: String,
-    val type: String?,
-    val path: String?,
-    val children: List<TreeNode>?
 )
 
 data class GraphResponse(

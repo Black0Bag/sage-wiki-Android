@@ -16,8 +16,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
-import com.sagewiki.android.network.*
+import com.sagewiki.android.network.SageWikiApi
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -25,97 +26,72 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 @Composable
 fun LibraryScreen(appSettings: AppSettings) {
-    val scope = rememberCoroutineScope()
-    val serverUrl = remember { mutableStateOf("") }
-    val token = remember { mutableStateOf("") }
-    val api = remember { mutableStateOf<SageWikiApi?>(null) }
-
-    val sources = remember { mutableStateListOf<SourceInfo>() }
-    val manifest = remember { mutableStateOf<ManifestResponse?>(null) }
-    val graph = remember { mutableStateOf<GraphResponse?>(null) }
-    val isLoading = remember { mutableStateOf(false) }
-    val errorMsg = remember { mutableStateOf<String?>(null) }
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    fun loadData() {
-        val a = api.value ?: return
-        scope.launch {
-            isLoading.value = true
-            errorMsg.value = null
-            try {
-                val src = a.getSources()
-                sources.clear()
-                sources.addAll(src.sources.sortedByDescending { it.modTime })
-                val mf = a.getManifest()
-                manifest.value = mf
-                val g = a.getGraph()
-                graph.value = g
-            } catch (e: Exception) {
-                errorMsg.value = e.message ?: "加载失败"
-            }
-            isLoading.value = false
-        }
-    }
+    val viewModel: LibraryViewModel = viewModel()
+    val state by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
-        serverUrl.value = appSettings.getServerUrl()
-        token.value = appSettings.getBearerToken()
-        api.value = SageWikiApi.create(serverUrl.value, token.value)
-        loadData()
+        viewModel.init(appSettings)
     }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     // 文件上传选择器
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
-        val a = api.value ?: return@rememberLauncherForActivityResult
         scope.launch {
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
                 val bytes = inputStream?.readBytes() ?: return@launch
                 val fileName = uri.lastPathSegment ?: "upload"
                 val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                val body = okhttp3.RequestBody.create(mime.toMediaType(), bytes)
+                val body = bytes.toRequestBody(mime.toMediaType())
                 val part = MultipartBody.Part.createFormData("file", fileName, body)
-                a.uploadSource(part)
-                loadData()
+                viewModel.uploadSource(part)
             } catch (e: Exception) {
-                errorMsg.value = "上传失败: ${e.message}"
+                // Error is already captured by ViewModel; nothing extra to do here
             }
         }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Tab 切换
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }) { Text("源文件") }
-            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }) { Text("编译产物") }
-            Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }) { Text("知识图谱") }
+        TabRow(selectedTabIndex = state.selectedTab) {
+            Tab(selected = state.selectedTab == LibraryTab.SOURCES, onClick = { viewModel.selectTab(LibraryTab.SOURCES) }) { Text("源文件") }
+            Tab(selected = state.selectedTab == LibraryTab.COMPILATION, onClick = { viewModel.selectTab(LibraryTab.COMPILATION) }) { Text("编译产物") }
+            Tab(selected = state.selectedTab == LibraryTab.GRAPH, onClick = { viewModel.selectTab(LibraryTab.GRAPH) }) { Text("知识图谱") }
         }
 
-        if (isLoading.value) {
+        if (state.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
             return@Column
         }
 
-        errorMsg.value?.let { err ->
+        state.error?.let { err ->
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 modifier = Modifier.padding(8.dp)) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("⚠️ $err", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { loadData() }) { Text("重试") }
+                    TextButton(onClick = { viewModel.loadData() }) { Text("重试") }
                 }
             }
         }
 
-        when (selectedTab) {
-            0 -> SourceTab(sources, serverUrl.value, token.value, { filePickerLauncher.launch("*/*") }) { loadData() }
-            1 -> CompilationTab(manifest.value)
-            2 -> GraphTab(graph.value)
+        when (state.selectedTab) {
+            LibraryTab.SOURCES -> SourceTab(
+                sources = state.sources,
+                serverUrl = viewModel.serverUrl,
+                token = viewModel.token,
+                onUpload = { filePickerLauncher.launch("*/*") },
+                onRefresh = { viewModel.loadData() },
+                onDelete = { viewModel.deleteSource(it) }
+            )
+            LibraryTab.COMPILATION -> CompilationTab(state.manifest)
+            LibraryTab.GRAPH -> GraphTab(state.graph)
         }
     }
 }
@@ -126,7 +102,8 @@ private fun SourceTab(
     serverUrl: String,
     token: String,
     onUpload: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onDelete: (String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -150,14 +127,9 @@ private fun SourceTab(
                             Text("${formatBytes(source.size)} · ${source.modTime}", style = MaterialTheme.typography.bodySmall)
                         },
                         trailingContent = {
-                            IconButton(onClick = {
-                                kotlinx.coroutines.MainScope().launch {
-                                    try {
-                                        SageWikiApi.create(serverUrl, token).deleteSource(source.name)
-                                        onRefresh()
-                                    } catch (_: Exception) {}
-                                }
-                            }) { Icon(Icons.Filled.Delete, "删除") }
+                            IconButton(onClick = { onDelete(source.name) }) {
+                                Icon(Icons.Filled.Delete, "删除")
+                            }
                         }
                     )
                 }

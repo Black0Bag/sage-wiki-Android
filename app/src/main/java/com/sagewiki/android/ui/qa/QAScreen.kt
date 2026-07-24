@@ -12,9 +12,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
-import com.sagewiki.android.network.*
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 data class QaMessage(
     val role: String, // "user" or "assistant"
@@ -24,53 +24,25 @@ data class QaMessage(
 
 @Composable
 fun QAScreen(appSettings: AppSettings) {
-    val scope = rememberCoroutineScope()
-    val serverUrl = remember { mutableStateOf("") }
-    val token = remember { mutableStateOf("") }
-    val api = remember { mutableStateOf<SageWikiApi?>(null) }
-
-    val messages = remember { mutableStateListOf<QaMessage>() }
-    var inputText by remember { mutableStateOf("") }
-    val isLoading = remember { mutableStateOf(false) }
+    val viewModel: QAViewModel = viewModel()
+    val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
-    val errorMsg = remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        serverUrl.value = appSettings.getServerUrl()
-        token.value = appSettings.getBearerToken()
-        api.value = SageWikiApi.create(serverUrl.value, token.value)
+        viewModel.init(appSettings)
     }
 
-    fun sendQuestion(q: String) {
-        if (q.isBlank()) return
-        val a = api.value ?: return
-        messages.add(QaMessage("user", q))
-        inputText = ""
-        isLoading.value = true
-        errorMsg.value = null
-
-        scope.launch {
-            try {
-                val r = a.query(QueryRequest(q = q))
-                messages.add(QaMessage(
-                    role = "assistant",
-                    content = r.answer ?: "无法获取回答",
-                    sources = r.sources
-                ))
-                // 滚动到底部
-                kotlinx.coroutines.delay(100)
-                listState.animateScrollToItem(messages.size - 1)
-            } catch (e: Exception) {
-                errorMsg.value = "查询失败: ${e.message}"
-                messages.add(QaMessage("assistant", "❌ 查询失败: ${e.message}"))
-            }
-            isLoading.value = false
+    // Auto-scroll to bottom when new messages arrive
+    LaunchedEffect(state.messages.size) {
+        if (state.messages.isNotEmpty()) {
+            delay(100)
+            listState.animateScrollToItem(state.messages.size - 1)
         }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // 消息列表
-        if (messages.isEmpty()) {
+        if (state.messages.isEmpty()) {
             Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -87,7 +59,7 @@ fun QAScreen(appSettings: AppSettings) {
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(messages) { msg ->
+                items(state.messages) { msg ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -126,7 +98,7 @@ fun QAScreen(appSettings: AppSettings) {
                     }
                 }
 
-                if (isLoading.value) {
+                if (state.isLoading) {
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -149,17 +121,17 @@ fun QAScreen(appSettings: AppSettings) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
-                value = inputText,
-                onValueChange = { inputText = it },
+                value = state.inputText,
+                onValueChange = { viewModel.updateInput(it) },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("输入问题...") },
                 singleLine = true,
-                enabled = !isLoading.value
+                enabled = !state.isLoading
             )
             Spacer(modifier = Modifier.width(8.dp))
             FilledIconButton(
-                onClick = { sendQuestion(inputText) },
-                enabled = inputText.isNotBlank() && !isLoading.value
+                onClick = { viewModel.sendQuestion(state.inputText) },
+                enabled = state.inputText.isNotBlank() && !state.isLoading
             ) {
                 Icon(Icons.Filled.Send, "发送")
             }
