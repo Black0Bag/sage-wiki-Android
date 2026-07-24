@@ -127,13 +127,11 @@ class SettingsViewModel(
     //  Initialization
     // ═════════════════════════════════════════════════════════════════════
 
-    fun initSettings() {
+    suspend fun initSettings() {
         val serverUrl = appSettings.getServerUrl()
         val token = appSettings.getBearerToken()
         api = SageWikiApi.create(serverUrl, token)
-        activeServer = run { // read once; blocking but runs on calling thread
-            kotlinx.coroutines.runBlocking { appSettings.activeServerName.first() }
-        }
+        activeServer = appSettings.activeServerName.first()
         val sl = appSettings.getServerList()
         serverList.clear()
         serverList.addAll(sl)
