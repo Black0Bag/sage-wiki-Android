@@ -1,0 +1,33 @@
+---
+description: sage-wiki-Android 项目规则（版本号宪法 + 编码规范）
+globs: ["**/*.kt", "**/*.kts", "**/*.xml", "**/*.gradle", "**/*.properties"]
+alwaysApply: true
+---
+
+# sage-wiki-Android — Cursor Rules
+
+> **本文件引用 `.github/AGENT_CONTEXT.md` 作为完整规则源。以下为最高优先级规则摘要。**
+
+## 版本号宪法（强制）
+
+版本号定义在 `app/build.gradle.kts` → `versionName`，格式 `MAJOR.MINOR.PATCH`。
+
+### 递增规则
+
+1. **PATCH（累计制）**：每修一个小 bug → +1，可一次 +N，无上限。条件②触发时归零。
+2. **MINOR**：每修一个中型 bug 或新增一个功能 → +1，PATCH 归零。条件③触发时归零。
+3. **MAJOR**：架构重构 / 破坏性变更 → +1，MINOR 和 PATCH 都归零。同一月不应推进两次。
+
+### 计算公式
+
+`versionCode = MAJOR * 10000 + MINOR * 100 + PATCH`
+
+### 联动
+
+同时影响 sage-wiki-plus 时，两个仓库必须同步升级版本号。
+
+### 提交前检查
+
+每次 commit / push 前必须：
+- 确认版本号已按规则更新
+- 在 commit message 注明版本变更原因
