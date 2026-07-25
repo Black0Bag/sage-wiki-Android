@@ -1,10 +1,8 @@
 package com.sagewiki.android.ui.about
 
 import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.database.Cursor
 import android.net.Uri
 import androidx.compose.foundation.layout.*
