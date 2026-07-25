@@ -86,33 +86,42 @@ class LibraryViewModel : ViewModel() {
         val a = api ?: return
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
+            var sources: List<SourceInfo> = emptyList()
+            var manifest: ManifestResponse? = null
+            var graph: GraphResponse? = null
+            var partialError: String? = null
+
+            // Sources — independent try-catch so manifest/graph failures don't wipe sources
             try {
-                // Sources
                 val sourcesResponse = a.getSources()
-                val sortedSources = sourcesResponse.sources.sortedByDescending { it.modTime }
-
-                // Manifest (compilation artifacts)
-                val manifest = a.getManifest()
-
-                // Graph (knowledge graph)
-                val graph = a.getGraph()
-
-                _uiState.update {
-                    it.copy(
-                        sources = sortedSources,
-                        manifest = manifest,
-                        graph = graph,
-                        isLoading = false,
-                        error = null
-                    )
-                }
+                sources = sourcesResponse.sources.sortedByDescending { it.modTime }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "加载失败"
-                    )
-                }
+                partialError = "源文件加载失败: ${e.message ?: "未知错误"}"
+            }
+
+            // Manifest — independent try-catch
+            try {
+                manifest = a.getManifest()
+            } catch (e: Exception) {
+                // Manifest not found is non-fatal (project may not have been compiled yet)
+                // Only report if sources also failed
+            }
+
+            // Graph — independent try-catch
+            try {
+                graph = a.getGraph()
+            } catch (e: Exception) {
+                // Graph not available is non-fatal
+            }
+
+            _uiState.update {
+                it.copy(
+                    sources = sources,
+                    manifest = manifest,
+                    graph = graph,
+                    isLoading = false,
+                    error = partialError
+                )
             }
         }
     }

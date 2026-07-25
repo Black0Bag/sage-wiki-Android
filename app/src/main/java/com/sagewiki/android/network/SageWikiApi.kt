@@ -94,6 +94,8 @@ interface SageWikiApi {
 
     companion object {
         fun create(baseUrl: String, token: String? = null): SageWikiApi {
+            require(baseUrl.isNotBlank()) { "Server URL must not be empty" }
+
             val logging = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BASIC
             }
@@ -107,7 +109,7 @@ interface SageWikiApi {
                     chain.proceed(request.build())
                 }
                 .addInterceptor(logging)
-                .connectTimeout(5, TimeUnit.SECONDS)
+                .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
                 .build()

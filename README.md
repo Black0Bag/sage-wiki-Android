@@ -21,6 +21,13 @@ sage-wiki 知识库的 Android 原生伴生 App。连接任一兼容 [sage-wiki-
 
 ## 版本历史
 
+### v2.0.1 (2026-07-25)
+- **修复** 文件库页面红色错误：loadData() 三请求改为各自独立 try-catch，部分失败不再导致整页崩溃
+- **修复** SetupScreen 保存按钮未校验空 URL
+- **修复** SageWikiApi.create() 未校验空 baseUrl，增加 require 检查
+- **优化** connectTimeout 5s → 15s，减少弱网环境超时
+- **后端配套修复** /api/manifest 未编译时返回空 JSON 200 而非 404 文本
+
 ### v1.1.0 (2026-07-23)
 - **重构**：3 Tab → Dashboard / Library / Settings
 - **新增** Dashboard：知识库状态 + 宿主机状态 2秒自动刷新
