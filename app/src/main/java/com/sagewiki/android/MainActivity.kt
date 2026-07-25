@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.sagewiki.android.data.AppSettings
@@ -104,6 +105,15 @@ class MainActivity : ComponentActivity() {
 fun AppMainScreen(appSettings: AppSettings) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showAbout by remember { mutableStateOf(false) }
+
+    // 返回键拦截：关于页 → 回主界面
+    BackHandler(enabled = showAbout) {
+        showAbout = false
+    }
+    // 返回键拦截：非首页 Tab → 回首页
+    BackHandler(enabled = !showAbout && selectedTab != 0) {
+        selectedTab = 0
+    }
 
     if (showAbout) {
         Column(modifier = Modifier.fillMaxSize()) {

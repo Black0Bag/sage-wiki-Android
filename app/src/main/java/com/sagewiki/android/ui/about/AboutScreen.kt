@@ -1,5 +1,12 @@
 package com.sagewiki.android.ui.about
 
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.database.Cursor
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,6 +43,12 @@ fun AboutScreen() {
     val isChecking = remember { mutableStateOf(false) }
     val checkError = remember { mutableStateOf<String?>(null) }
     val hasUpdate = remember { mutableStateOf<Boolean?>(null) }
+
+    // 下载状态
+    val isDownloading = remember { mutableStateOf(false) }
+    val downloadProgress = remember { mutableStateOf(0) }
+    val downloadError = remember { mutableStateOf<String?>(null) }
+    var downloadId by remember { mutableStateOf<Long>(-1L) }
 
     fun checkUpdate() {
         scope.launch {
@@ -82,6 +95,69 @@ fun AboutScreen() {
         }
     }
 
+    fun downloadAndUpdate(url: String) {
+        if (url.isBlank()) return
+        scope.launch {
+            isDownloading.value = true
+            downloadError.value = null
+            downloadProgress.value = 0
+            try {
+                withContext(Dispatchers.IO) {
+                    val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                    val request = DownloadManager.Request(Uri.parse(url))
+                        .setTitle("SageWiki 更新")
+                        .setDescription("正在下载最新版本 APK")
+                        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+                        .setAllowedOverMetered(true)
+                        .setDestinationInExternalFilesDir(context, null, "sagewiki-update.apk")
+
+                    downloadId = dm.enqueue(request)
+
+                    // 轮询下载进度
+                    var downloading = true
+                    while (downloading) {
+                        val cursor: Cursor = dm.query(DownloadManager.Query().setFilterById(downloadId))
+                        if (cursor.moveToFirst()) {
+                            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                                downloadProgress.value = 100
+                                downloading = false
+                                // 获取下载文件的 URI
+                                val uriString = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
+                                cursor.close()
+
+                                // 跳转到安装界面
+                                val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(Uri.parse(uriString), "application/vnd.android.package-archive")
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                }
+                                context.startActivity(installIntent)
+                            } else if (status == DownloadManager.STATUS_FAILED) {
+                                cursor.close()
+                                downloading = false
+                                downloadError.value = "下载失败"
+                            } else {
+                                val bytesDownloaded = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                                val bytesTotal = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                                if (bytesTotal > 0) {
+                                    downloadProgress.value = (bytesDownloaded * 100 / bytesTotal)
+                                }
+                                cursor.close()
+                                Thread.sleep(500)
+                            }
+                        } else {
+                            cursor.close()
+                            downloading = false
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                downloadError.value = e.message ?: "下载失败"
+            }
+            isDownloading.value = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -120,30 +196,62 @@ fun AboutScreen() {
                 if (hasUpdate.value == true) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("🎉 有新版本可用！", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                    downloadUrl.value?.let { url ->
-                        Spacer(modifier = Modifier.height(4.dp))
-                        TextButton(onClick = {
-                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                            context.startActivity(intent)
-                        }) { Text("下载新版本") }
-                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 检查更新
-        Button(
-            onClick = { checkUpdate() },
-            enabled = !isChecking.value,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (isChecking.value) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            else Text("🔍 检查更新")
+        // 检查更新 / 下载更新 按钮区域
+        if (hasUpdate.value == true && !isDownloading.value) {
+            // 有更新：按钮变为"下载更新"
+            Button(
+                onClick = {
+                    downloadUrl.value?.let { url -> downloadAndUpdate(url) }
+                },
+                enabled = !downloadUrl.value.isNullOrBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("⬇ 下载更新 v${latestVersion.value ?: ""}")
+            }
+        } else if (isDownloading.value) {
+            // 下载中：显示进度
+            Button(
+                onClick = {},
+                enabled = false,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("下载中 ${downloadProgress.value}%")
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            LinearProgressIndicator(
+                progress = { downloadProgress.value / 100f },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            // 默认：检查更新
+            Button(
+                onClick = { checkUpdate() },
+                enabled = !isChecking.value,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isChecking.value) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                else Text("🔍 检查更新")
+            }
+        }
+
+        // 已是最新版本提示
+        if (hasUpdate.value == false) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("✅ 已是最新版本", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
         }
 
         checkError.value?.let { err ->
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("❌ $err", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        downloadError.value?.let { err ->
             Spacer(modifier = Modifier.height(4.dp))
             Text("❌ $err", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
@@ -166,8 +274,8 @@ fun AboutScreen() {
 
         // 链接
         TextButton(onClick = {
-            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
-                android.net.Uri.parse("https://github.com/Black0Bag/sage-wiki-Android"))
+            val intent = Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://github.com/Black0Bag/sage-wiki-Android"))
             context.startActivity(intent)
         }) { Text("GitHub 仓库 →") }
 

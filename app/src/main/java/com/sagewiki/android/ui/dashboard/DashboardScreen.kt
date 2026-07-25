@@ -26,6 +26,7 @@ fun DashboardScreen(appSettings: AppSettings) {
     val sourcesTotal by vm.sourcesTotal.collectAsState()
     val healthOk by vm.healthOk.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
+    val isRefreshing by vm.isRefreshing.collectAsState()
     val errorMsg by vm.error.collectAsState()
 
     // 首次进入时触发一次数据刷新
@@ -39,19 +40,31 @@ fun DashboardScreen(appSettings: AppSettings) {
     }
 
     if (isLoading) {
+        // 首次加载：全屏 loading（带渐入动画）
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-    ) {
-        // 服务器URL
+    // 后续刷新：保留已有数据，顶部显示线性进度条，内容用 Crossfade 平滑过渡
+    Crossfade(targetState = isRefreshing, label = "dashRefresh") { refreshing ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            // 刷新进度条（仅刷新时显示）
+            if (refreshing) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                )
+            }
+
+            // 服务器URL
         Text(
             text = serverUrl.ifBlank { "未连接" },
             style = MaterialTheme.typography.labelMedium,
@@ -178,6 +191,7 @@ fun DashboardScreen(appSettings: AppSettings) {
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }
 

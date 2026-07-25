@@ -1,5 +1,6 @@
 package com.sagewiki.android.ui.browse
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +33,11 @@ fun BrowseScreen(appSettings: AppSettings) {
     val articleContent by viewModel.articleContent.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMsg by viewModel.error.collectAsState()
+
+    // 返回键拦截：文章详情 → 回列表
+    BackHandler(enabled = selectedConcept != null) {
+        viewModel.clearSelection()
+    }
 
     // 阅读视图
     if (selectedConcept != null) {

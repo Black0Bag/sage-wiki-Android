@@ -3,7 +3,10 @@ package com.sagewiki.android.ui.library
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -94,10 +97,40 @@ fun LibraryScreen(appSettings: AppSettings) {
                 token = viewModel.token,
                 onUpload = { filePickerLauncher.launch("*/*") },
                 onRefresh = { viewModel.loadData() },
-                onDelete = { viewModel.deleteSource(it) }
+                onDelete = { viewModel.deleteSource(it) },
+                onPreview = { viewModel.previewSource(it) }
             )
             LibraryTab.COMPILATION -> CompilationTab(state.manifest)
             LibraryTab.GRAPH -> GraphTab(state.graph)
+        }
+
+        // 源文件预览对话框
+        state.previewFileName?.let { fileName ->
+            AlertDialog(
+                onDismissRequest = { viewModel.clearPreview() },
+                title = { Text(fileName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                text = {
+                    if (state.isPreviewLoading) {
+                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        state.previewContent?.let { content ->
+                            Text(
+                                text = content,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 400.dp)
+                                    .verticalScroll(rememberScrollState())
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.clearPreview() }) { Text("关闭") }
+                }
+            )
         }
     }
 }
@@ -109,7 +142,8 @@ private fun SourceTab(
     token: String,
     onUpload: () -> Unit,
     onRefresh: () -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onPreview: (String) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -128,6 +162,7 @@ private fun SourceTab(
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp)) {
                 items(sources, key = { it.name }) { source ->
                     ListItem(
+                        modifier = Modifier.clickable { onPreview(source.name) },
                         headlineContent = { Text(source.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         supportingContent = {
                             Text("${formatBytes(source.size)} · ${source.modTime}", style = MaterialTheme.typography.bodySmall)

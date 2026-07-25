@@ -12,8 +12,8 @@ android {
         applicationId = "com.sagewiki.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "2.0.1"
+        versionCode = 20100
+        versionName = "2.1.0"
     }
 
     buildTypes {
@@ -45,6 +45,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
     implementation("androidx.compose.material3:material3")

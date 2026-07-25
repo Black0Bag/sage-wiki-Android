@@ -34,7 +34,10 @@ data class LibraryUiState(
     val graph: GraphResponse? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
-    val selectedTab: Int = LibraryTab.SOURCES
+    val selectedTab: Int = LibraryTab.SOURCES,
+    val previewFileName: String? = null,
+    val previewContent: String? = null,
+    val isPreviewLoading: Boolean = false,
 )
 
 /**
@@ -157,6 +160,13 @@ class LibraryViewModel : ViewModel() {
             try {
                 _uiState.update { it.copy(isLoading = true, error = null) }
                 a.uploadSource(part)
+                // 上传成功后自动触发服务端编译
+                try {
+                    a.compile()
+                } catch (e: Exception) {
+                    // 编译失败不阻塞列表刷新，记录为软错误
+                    _uiState.update { it.copy(error = "文件已上传，但编译失败: ${e.message}") }
+                }
                 loadData()
             } catch (e: Exception) {
                 _uiState.update {
@@ -166,6 +176,58 @@ class LibraryViewModel : ViewModel() {
                     )
                 }
             }
+        }
+    }
+
+    /** Trigger server-side compilation manually. */
+    fun compile() {
+        val a = api ?: return
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                a.compile()
+                loadData()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isLoading = false, error = "编译失败: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /** Load a source file's raw content for preview. */
+    fun previewSource(name: String) {
+        val a = api ?: return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    previewFileName = name,
+                    previewContent = null,
+                    isPreviewLoading = true
+                )
+            }
+            try {
+                val body = a.getSourceRaw(name)
+                val content = body.string()
+                body.close()
+                _uiState.update {
+                    it.copy(previewContent = content, isPreviewLoading = false)
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        previewContent = "加载失败: ${e.message}",
+                        isPreviewLoading = false
+                    )
+                }
+            }
+        }
+    }
+
+    /** Dismiss the preview dialog. */
+    fun clearPreview() {
+        _uiState.update {
+            it.copy(previewFileName = null, previewContent = null, isPreviewLoading = false)
         }
     }
 

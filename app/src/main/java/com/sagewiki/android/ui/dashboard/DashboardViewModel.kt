@@ -9,6 +9,7 @@ import com.sagewiki.android.network.HealthResponse
 import com.sagewiki.android.network.SourcesResponse
 import com.sagewiki.android.network.StatusResponse
 import com.sagewiki.android.network.SysInfoResponse
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,8 +56,13 @@ class DashboardViewModel(
     private val _healthOk = MutableStateFlow<Boolean?>(null)
     val healthOk: StateFlow<Boolean?> = _healthOk.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(true)
+    private val _isLoading = MutableStateFlow(true)       // 首次加载（全屏 loading）
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)   // 后续刷新（顶部线性进度条）
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private var hasData = false                            // 是否已有数据（区分首次/后续）
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -79,7 +85,12 @@ class DashboardViewModel(
      */
     fun refresh() {
         viewModelScope.launch {
-            _isLoading.value = true
+            // 区分首次加载和后续刷新
+            if (hasData) {
+                _isRefreshing.value = true
+            } else {
+                _isLoading.value = true
+            }
             try {
                 // 读取最新服务器配置
                 val url = appSettings.getServerUrl()
@@ -88,27 +99,24 @@ class DashboardViewModel(
                 repository = SageWikiRepository.create(url, token)
                 val repo = repository!!
 
-                // 健康检查
-                val health: HealthResponse = repo.health()
-                _healthOk.value = health.status == "healthy"
+                // 并行请求 4 个接口，缩短刷新时间
+                val healthDeferred = async { repo.health() }
+                val statusDeferred = async { repo.getStatus() }
+                val sourcesDeferred = async { repo.getSources() }
+                val sysInfoDeferred = async { repo.getSysInfo() }
 
-                // 知识库状态
-                val s: StatusResponse = repo.getStatus()
-                _status.value = s
-
-                // 源文件数量
-                val src: SourcesResponse = repo.getSources()
-                _sourcesTotal.value = src.total
-
-                // 系统信息
-                val si: SysInfoResponse = repo.getSysInfo()
-                _sysInfo.value = si
+                _healthOk.value = healthDeferred.await().status == "healthy"
+                _status.value = statusDeferred.await()
+                _sourcesTotal.value = sourcesDeferred.await().total
+                _sysInfo.value = sysInfoDeferred.await()
 
                 _error.value = null
+                hasData = true
             } catch (e: Exception) {
                 _error.value = e.message ?: "未知错误"
             }
             _isLoading.value = false
+            _isRefreshing.value = false
         }
     }
 
