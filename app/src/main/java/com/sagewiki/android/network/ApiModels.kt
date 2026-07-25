@@ -158,13 +158,23 @@ data class ModelInfo(
 data class ManifestResponse(
     val concepts: Map<String, ConceptInfo>?,
     val summaries: List<String>?,
-    val sources: List<String>?
+    val sources: Map<String, SourceManifestInfo>?
 )
 
 data class ConceptInfo(
     @SerializedName("article_path") val articlePath: String?,
-    val tier: Int?,
-    val source: String?
+    @SerializedName("last_compiled") val lastCompiled: String?,
+    val sources: List<String>?
+)
+
+data class SourceManifestInfo(
+    @SerializedName("added_at") val addedAt: String?,
+    @SerializedName("compiled_at") val compiledAt: String?,
+    val hash: String?,
+    @SerializedName("size_bytes") val sizeBytes: Long?,
+    val status: String?,
+    @SerializedName("summary_path") val summaryPath: String?,
+    val type: String?
 )
 
 // ========== v1.1.0 新增模型 ==========
@@ -253,7 +263,8 @@ data class GraphNode(
     val id: String,
     val name: String? = null,
     val type: String? = null,
-    val connections: Int? = null
+    val connections: Int? = null,
+    val definition: String? = null
 )
 
 data class GraphEdge(

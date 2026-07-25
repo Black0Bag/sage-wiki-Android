@@ -15,11 +15,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.SageWikiApi
 import com.sagewiki.android.network.GraphResponse
@@ -114,6 +116,17 @@ fun LibraryScreen(appSettings: AppSettings) {
                         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
+                    } else if (state.isPreviewImage) {
+                        // 图片预览：用 AsyncImage 渲染，不读二进制进内存
+                        val imageUrl = "${viewModel.serverUrl}/api/sources/raw/${java.net.URLEncoder.encode(fileName, "UTF-8")}"
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = fileName,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 400.dp),
+                            contentScale = ContentScale.Fit,
+                        )
                     } else {
                         state.previewContent?.let { content ->
                             Text(
@@ -204,7 +217,23 @@ private fun CompilationTab(manifest: ManifestResponse?) {
                 item {
                     ListItem(
                         headlineContent = { Text(name, fontWeight = FontWeight.Medium) },
-                        supportingContent = { Text("层级: ${info.tier} · 源: ${info.source}") }
+                        supportingContent = { Text("编译: ${info.lastCompiled ?: "—"} · 源: ${info.sources?.joinToString(", ") ?: "—"}") }
+                    )
+                }
+            }
+        }
+
+        manifest.sources?.let { sources ->
+            item { Spacer(modifier = Modifier.height(16.dp)); Text("源文件状态", style = MaterialTheme.typography.titleSmall) }
+            sources.entries.forEach { (path, info) ->
+                item {
+                    ListItem(
+                        headlineContent = { Text(path.substringAfterLast("/"), fontWeight = FontWeight.Medium) },
+                        supportingContent = { Text("状态: ${info.status ?: "—"} · 类型: ${info.type ?: "—"} · ${info.sizeBytes ?: 0}B") },
+                        trailingContent = {
+                            if (info.status == "compiled") Text("✅", color = MaterialTheme.colorScheme.primary)
+                            else Text("⏳", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     )
                 }
             }
@@ -218,6 +247,8 @@ private fun GraphTab(graph: GraphResponse?) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("暂无图谱数据") }
         return
     }
+
+    var selectedNode by remember { mutableStateOf<GraphNode?>(null) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         item {
@@ -234,8 +265,10 @@ private fun GraphTab(graph: GraphResponse?) {
         graph.nodes?.forEach { node ->
             item {
                 ListItem(
-                    headlineContent = { Text(node.id, fontWeight = FontWeight.Medium) },
-                    supportingContent = { Text("类型: ${node.type ?: "—"} · ${node.name ?: ""}") }
+                    modifier = Modifier.clickable { selectedNode = node },
+                    headlineContent = { Text(node.name ?: node.id, fontWeight = FontWeight.Medium) },
+                    supportingContent = { Text("类型: ${node.type ?: "—"} · 连接: ${node.connections ?: 0}") },
+                    trailingContent = { Icon(Icons.Filled.ChevronRight, "查看") }
                 )
             }
         }
@@ -251,6 +284,33 @@ private fun GraphTab(graph: GraphResponse?) {
                 }
             }
         }
+    }
+
+    // 实体详情对话框
+    selectedNode?.let { node ->
+        AlertDialog(
+            onDismissRequest = { selectedNode = null },
+            title = { Text(node.name ?: node.id, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("ID: ${node.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("类型: ${node.type ?: "—"}", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("连接数: ${node.connections ?: 0}", style = MaterialTheme.typography.bodySmall)
+                    node.definition?.let { def ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("定义", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(def, style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState()))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedNode = null }) { Text("关闭") }
+            }
+        )
     }
 }
 

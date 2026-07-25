@@ -38,6 +38,7 @@ data class LibraryUiState(
     val previewFileName: String? = null,
     val previewContent: String? = null,
     val isPreviewLoading: Boolean = false,
+    val isPreviewImage: Boolean = false,
 )
 
 /**
@@ -199,26 +200,40 @@ class LibraryViewModel : ViewModel() {
     fun previewSource(name: String) {
         val a = api ?: return
         viewModelScope.launch {
+            // 判断是否为图片文件
+            val isImage = name.lowercase().let {
+                it.endsWith(".png") || it.endsWith(".jpg") || it.endsWith(".jpeg") ||
+                it.endsWith(".gif") || it.endsWith(".webp")
+            }
             _uiState.update {
                 it.copy(
                     previewFileName = name,
                     previewContent = null,
-                    isPreviewLoading = true
+                    isPreviewLoading = !isImage, // 图片不需要 loading（直接用 URL）
+                    isPreviewImage = isImage,
                 )
             }
-            try {
-                val body = a.getSourceRaw(name)
-                val content = body.string()
-                body.close()
+            if (isImage) {
+                // 图片：不需要下载二进制，UI 层直接用 URL 构建图片
                 _uiState.update {
-                    it.copy(previewContent = content, isPreviewLoading = false)
+                    it.copy(isPreviewLoading = false)
                 }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        previewContent = "加载失败: ${e.message}",
-                        isPreviewLoading = false
-                    )
+            } else {
+                // 文本文件：下载内容
+                try {
+                    val body = a.getSourceRaw(name)
+                    val content = body.string()
+                    body.close()
+                    _uiState.update {
+                        it.copy(previewContent = content, isPreviewLoading = false)
+                    }
+                } catch (e: Exception) {
+                    _uiState.update {
+                        it.copy(
+                            previewContent = "加载失败: ${e.message}",
+                            isPreviewLoading = false
+                        )
+                    }
                 }
             }
         }
@@ -227,7 +242,7 @@ class LibraryViewModel : ViewModel() {
     /** Dismiss the preview dialog. */
     fun clearPreview() {
         _uiState.update {
-            it.copy(previewFileName = null, previewContent = null, isPreviewLoading = false)
+            it.copy(previewFileName = null, previewContent = null, isPreviewLoading = false, isPreviewImage = false)
         }
     }
 
