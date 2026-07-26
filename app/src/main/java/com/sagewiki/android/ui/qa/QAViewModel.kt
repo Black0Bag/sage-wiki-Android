@@ -237,7 +237,7 @@ class QAViewModel : ViewModel() {
                     }
                 }
             } catch (e: Exception) {
-                val errorMsg = "查询失败: ${e.message}"
+                val errorMsg = "查询失败: ${e.message ?: e::class.simpleName ?: "未知错误"}"
                 _uiState.update { state ->
                     state.copy(
                         messages = state.messages.map { msg ->

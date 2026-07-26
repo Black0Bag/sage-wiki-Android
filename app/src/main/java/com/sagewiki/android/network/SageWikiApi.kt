@@ -110,8 +110,8 @@ interface SageWikiApi {
                 }
                 .addInterceptor(logging)
                 .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(300, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
                 .build()
 
             val url = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
