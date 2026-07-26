@@ -7,11 +7,13 @@ import com.sagewiki.android.network.QueryRequest
 import com.sagewiki.android.network.SageWikiApi
 import com.google.gson.Gson
 import com.google.gson.JsonParser
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.util.UUID
@@ -78,8 +80,9 @@ class QAViewModel : ViewModel() {
     fun init(appSettings: AppSettings) {
         if (api != null) return
         viewModelScope.launch {
-            val serverUrl = appSettings.getServerUrl()
-            val token = appSettings.getBearerToken()
+            // DataStore 读取涉及磁盘 IO，必须在 IO 调度器上执行
+            val serverUrl = withContext(Dispatchers.IO) { appSettings.getServerUrl() }
+            val token = withContext(Dispatchers.IO) { appSettings.getBearerToken() }
             api = SageWikiApi.create(serverUrl, token)
         }
     }
@@ -121,6 +124,7 @@ class QAViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
+            withContext(Dispatchers.IO) {
             try {
                 val responseBody = a.query(QueryRequest(question = question))
                 val reader = java.io.BufferedReader(
@@ -294,6 +298,7 @@ class QAViewModel : ViewModel() {
                     )
                 }
             }
+            } // withContext(Dispatchers.IO)
         }
     }
 
