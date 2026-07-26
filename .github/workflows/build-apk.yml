@@ -52,15 +52,14 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            mkdir -p app/keystore
-            echo "$KEYSTORE_BASE64" | base64 -d > app/keystore/sagewiki-release.jks
-            ls -la app/keystore/sagewiki-release.jks
-          else
-            echo "KEYSTORE_BASE64 secret not set, will use debug signing"
-          fi
+          mkdir -p app/keystore
+          echo "$KEYSTORE_BASE64" | base64 -d > app/keystore/sagewiki-release.jks
+          ls -la app/keystore/sagewiki-release.jks
 
       - name: Build release APK
+        env:
+          SAGEWIKI_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SAGEWIKI_KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK artifact

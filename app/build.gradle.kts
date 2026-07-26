@@ -43,8 +43,8 @@ android {
         applicationId = "com.sagewiki.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 20302
-        versionName = "2.3.2"
+        versionCode = 20303
+        versionName = "2.3.3"
     }
 
     signingConfigs {
@@ -66,14 +66,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // 正式签名 keystore 存在且有效时用正式签名，否则回退 debug 签名
-            val keystoreFile = file("keystore/sagewiki-release.jks")
-            val useReleaseSigning = keystoreFile.exists() && keystoreFile.length() > 0L
-            signingConfig = if (useReleaseSigning) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // 使用正式 Release 签名（CI 通过 Secrets 注入 keystore + 环境变量传密码）
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
