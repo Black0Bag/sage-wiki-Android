@@ -16,6 +16,7 @@ class SageWikiRepository private constructor(
         private set
 
     companion object {
+        /** 创建并返回一个配置好服务器地址与令牌的 [SageWikiRepository] 实例。 */
         fun create(url: String, token: String): SageWikiRepository {
             val api = SageWikiApi.create(url, token)
             return SageWikiRepository(api).also {
@@ -27,51 +28,86 @@ class SageWikiRepository private constructor(
 
     // ========== 状态 & 系统 ==========
 
+    /** 检查服务器健康状态。 */
     suspend fun health() = api.health()
+
+    /** 获取服务器运行状态信息。 */
     suspend fun getStatus() = api.getStatus()
+
+    /** 获取系统详细信息（版本、运行环境等）。 */
     suspend fun getSysInfo() = api.getSysInfo()
 
     // ========== 配置 ==========
 
+    /** 获取当前服务器配置。 */
     suspend fun getConfig() = api.getConfig()
+
+    /** 更新服务器配置。 */
     suspend fun updateConfig(body: ConfigUpdateRequest) = api.updateConfig(body)
 
     // ========== 源文件 ==========
 
+    /** 获取所有源文件列表。 */
     suspend fun getSources() = api.getSources()
+
+    /** 上传源文件到服务器。 */
     suspend fun uploadSource(file: MultipartBody.Part) = api.uploadSource(file)
+
+    /** 编译指定源文件（为空时编译全部）。 */
     suspend fun compile(source: String? = null) = api.compile(source)
+
+    /** 获取指定源文件的原始内容。 */
     suspend fun getSourceRaw(name: String) = api.getSourceRaw(name)
+
+    /** 更新指定源文件内容。 */
     suspend fun updateSource(body: SourceUpdateRequest) = api.updateSource(body)
+
+    /** 删除指定名称的源文件。 */
     suspend fun deleteSource(name: String) = api.deleteSource(name)
 
     // ========== 文章 ==========
 
+    /** 获取指定路径的文章内容。 */
     suspend fun getArticle(path: String) = api.getArticle(path)
+
+    /** 写入或更新文章。 */
     suspend fun writeArticle(body: ArticleWriteRequest) = api.writeArticle(body)
 
     // ========== 模型 ==========
 
+    /** 获取可用模型列表，[fetch] 为 true 时强制从服务器重新拉取。 */
     suspend fun getModels(fetch: Boolean = false) = api.getModels(fetch)
+
+    /** 测试指定模型的连通性与可用性。 */
     suspend fun testModel(body: ModelTestRequest) = api.testModel(body)
 
     // ========== 知识图谱 & 树 ==========
 
+    /** 获取知识树结构。 */
     suspend fun getTree() = api.getTree()
+
+    /** 获取知识图谱数据。 */
     suspend fun getGraph() = api.getGraph()
+
+    /** 获取编译清单（manifest）。 */
     suspend fun getManifest() = api.getManifest()
 
     // ========== 搜索 & 查询 ==========
 
+    /** 搜索文章，[query] 为关键词，[limit] 限制返回条数。 */
     suspend fun search(query: String, limit: Int? = null) = api.search(query, limit)
+
+    /** 向服务器发起自然语言查询。 */
     suspend fun query(body: QueryRequest) = api.query(body)
 
     // ========== 来源追溯 ==========
 
+    /** 获取来源追溯信息，可按 [article] 或 [source] 过滤。 */
     suspend fun getProvenance(article: String? = null, source: String? = null) =
         api.getProvenance(article, source)
 
     // ========== 分享 ==========
 
+    /** 创建分享链接。 */
     suspend fun share(body: ShareRequest) = api.share(body)
 }

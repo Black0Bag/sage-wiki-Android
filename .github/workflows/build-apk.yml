@@ -45,14 +45,24 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Decode Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+        run: |
+          mkdir -p keystore
+          echo "$KEYSTORE_BASE64" | base64 -d > keystore/sagewiki-release.jks
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sage-wiki-android-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: sage-wiki-android-release-apk
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 30
 
   release:
@@ -67,7 +77,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: sage-wiki-android-apk
+          name: sage-wiki-android-release-apk
           path: apk-artifacts
 
       - name: Extract version from gradle

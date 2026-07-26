@@ -9,6 +9,7 @@ import com.sagewiki.android.network.HealthResponse
 import com.sagewiki.android.network.SourcesResponse
 import com.sagewiki.android.network.StatusResponse
 import com.sagewiki.android.network.SysInfoResponse
+import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,29 +43,37 @@ class DashboardViewModel(
     // ==================== 状态字段 ====================
 
     private val _serverUrl = MutableStateFlow("")
+    /** 当前连接的服务器地址（只读暴露给 UI 显示）。 */
     val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
 
     private val _status = MutableStateFlow<StatusResponse?>(null)
+    /** 知识库状态（条目数、向量数、维度等），null 表示尚未获取。 */
     val status: StateFlow<StatusResponse?> = _status.asStateFlow()
 
     private val _sysInfo = MutableStateFlow<SysInfoResponse?>(null)
+    /** 宿主机系统信息（CPU、内存、磁盘、负载等），null 表示尚未获取。 */
     val sysInfo: StateFlow<SysInfoResponse?> = _sysInfo.asStateFlow()
 
     private val _sourcesTotal = MutableStateFlow(0)
+    /** 已索引的源文件总数。 */
     val sourcesTotal: StateFlow<Int> = _sourcesTotal.asStateFlow()
 
     private val _healthOk = MutableStateFlow<Boolean?>(null)
+    /** 服务器健康检查结果：true=健康、false=异常、null=尚未检查。 */
     val healthOk: StateFlow<Boolean?> = _healthOk.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)       // 首次加载（全屏 loading）
+    /** 首次加载标志，为 true 时 UI 显示全屏 loading 遮罩。 */
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)   // 后续刷新（顶部线性进度条）
+    /** 后续刷新标志，为 true 时 UI 显示顶部线性进度条。 */
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private var hasData = false                            // 是否已有数据（区分首次/后续）
 
     private val _error = MutableStateFlow<String?>(null)
+    /** 最近一次错误信息，null 表示无错误。 */
     val error: StateFlow<String?> = _error.asStateFlow()
 
     // ==================== 私有字段 ====================
@@ -112,8 +121,10 @@ class DashboardViewModel(
 
                 _error.value = null
                 hasData = true
+            } catch (e: IOException) {
+                _error.value = "网络错误，无法连接服务器：${e.message ?: "请检查网络和服务器地址"}"
             } catch (e: Exception) {
-                _error.value = e.message ?: "未知错误"
+                _error.value = "请求出错：${e.message ?: "未知错误"}"
             }
             _isLoading.value = false
             _isRefreshing.value = false
@@ -158,6 +169,13 @@ class DashboardViewModel(
     class Factory(
         private val appSettings: AppSettings
     ) : ViewModelProvider.Factory {
+        /**
+         * 创建指定类型的 ViewModel 实例。
+         *
+         * @param modelClass 需要创建的 ViewModel 类型。
+         * @return 与 [modelClass] 匹配的 ViewModel 实例。
+         * @throws IllegalArgumentException 当请求的 ViewModel 类型不被支持时抛出。
+         */
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(DashboardViewModel::class.java)) {

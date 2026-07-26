@@ -46,6 +46,15 @@ fun LibraryScreen(appSettings: AppSettings) {
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Snackbar 反馈：监听 snackbarMessage 并显示
+    LaunchedEffect(state.snackbarMessage) {
+        state.snackbarMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearSnackbar()
+        }
+    }
 
     // 文件上传选择器
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -67,88 +76,120 @@ fun LibraryScreen(appSettings: AppSettings) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Tab 切换
-        TabRow(selectedTabIndex = state.selectedTab) {
-            Tab(selected = state.selectedTab == LibraryTab.SOURCES, onClick = { viewModel.selectTab(LibraryTab.SOURCES) }) { Text("源文件") }
-            Tab(selected = state.selectedTab == LibraryTab.COMPILATION, onClick = { viewModel.selectTab(LibraryTab.COMPILATION) }) { Text("编译产物") }
-            Tab(selected = state.selectedTab == LibraryTab.GRAPH, onClick = { viewModel.selectTab(LibraryTab.GRAPH) }) { Text("知识图谱") }
-        }
-
-        if (state.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Tab 切换
+            TabRow(selectedTabIndex = state.selectedTab) {
+                Tab(selected = state.selectedTab == LibraryTab.SOURCES, onClick = { viewModel.selectTab(LibraryTab.SOURCES) }) { Text("源文件") }
+                Tab(selected = state.selectedTab == LibraryTab.COMPILATION, onClick = { viewModel.selectTab(LibraryTab.COMPILATION) }) { Text("编译产物") }
+                Tab(selected = state.selectedTab == LibraryTab.GRAPH, onClick = { viewModel.selectTab(LibraryTab.GRAPH) }) { Text("知识图谱") }
             }
-            return@Column
-        }
 
-        state.error?.let { err ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                modifier = Modifier.padding(8.dp)) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("⚠️ $err", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { viewModel.loadData() }) { Text("重试") }
+            if (state.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+                return@Column
+            }
+
+            state.error?.let { err ->
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.padding(8.dp)) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("⚠️ $err", modifier = Modifier.weight(1f))
+                        TextButton(onClick = { viewModel.loadData() }) { Text("重试") }
+                    }
                 }
             }
-        }
 
-        when (state.selectedTab) {
-            LibraryTab.SOURCES -> SourceTab(
-                sources = state.sources,
-                serverUrl = viewModel.serverUrl,
-                token = viewModel.token,
-                onUpload = { filePickerLauncher.launch("*/*") },
-                onRefresh = { viewModel.loadData() },
-                onDelete = { viewModel.deleteSource(it) },
-                onPreview = { viewModel.previewSource(it) }
-            )
-            LibraryTab.COMPILATION -> CompilationTab(
-                manifest = state.manifest,
-                onPreviewArticle = { path, name -> viewModel.previewArticle(path, name) },
-                onPreviewSource = { name -> viewModel.previewSource(name) }
-            )
-            LibraryTab.GRAPH -> GraphTab(state.graph)
-        }
-
-        // 源文件预览对话框
-        state.previewFileName?.let { fileName ->
-            AlertDialog(
-                onDismissRequest = { viewModel.clearPreview() },
-                title = { Text(fileName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                text = {
-                    if (state.isPreviewLoading) {
-                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    } else if (state.isPreviewImage) {
-                        // 图片预览：用 AsyncImage 渲染，不读二进制进内存
-                        val imageUrl = "${viewModel.serverUrl}/api/sources/raw/${java.net.URLEncoder.encode(fileName, "UTF-8")}"
-                        AsyncImage(
-                            model = imageUrl,
-                            contentDescription = fileName,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 400.dp),
-                            contentScale = ContentScale.Fit,
+            when (state.selectedTab) {
+                LibraryTab.SOURCES -> SourceTab(
+                    sources = state.sources,
+                    serverUrl = viewModel.serverUrl,
+                    token = viewModel.token,
+                    isLoading = state.isLoading,
+                    isCompiling = state.isCompiling,
+                    sortOption = state.sortOption,
+                    onUpload = { filePickerLauncher.launch("*/*") },
+                    onRefresh = { viewModel.loadData() },
+                    onCompile = { viewModel.compile() },
+                    onSort = { viewModel.setSortOption(it) },
+                    onDelete = { viewModel.deleteSource(it) },
+                    onPreview = { viewModel.previewSource(it) },
+                    onDownload = { name ->
+                        viewModel.downloadFile(
+                            name = name,
+                            context = context,
+                            onProgress = { /* 可扩展进度显示 */ },
+                            onComplete = { path ->
+                                scope.launch {
+                                    viewModel.clearSnackbar()
+                                    snackbarHostState.showSnackbar("已下载到: $path")
+                                }
+                            },
+                            onError = { msg ->
+                                scope.launch {
+                                    viewModel.clearSnackbar()
+                                    snackbarHostState.showSnackbar(msg)
+                                }
+                            }
                         )
-                    } else {
-                        state.previewContent?.let { content ->
-                            Text(
-                                text = content,
-                                style = MaterialTheme.typography.bodySmall,
+                    }
+                )
+                LibraryTab.COMPILATION -> CompilationTab(
+                    manifest = state.manifest,
+                    onPreviewArticle = { path, name -> viewModel.previewArticle(path, name) },
+                    onPreviewSource = { name -> viewModel.previewSource(name) }
+                )
+                LibraryTab.GRAPH -> GraphTab(state.graph)
+            }
+
+            // 源文件预览对话框
+            state.previewFileName?.let { fileName ->
+                AlertDialog(
+                    onDismissRequest = { viewModel.clearPreview() },
+                    title = { Text(fileName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    text = {
+                        if (state.isPreviewLoading) {
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        } else if (state.isPreviewImage) {
+                            // 图片预览：用 AsyncImage 渲染，不读二进制进内存
+                            val imageUrl = "${viewModel.serverUrl}/api/sources/raw/${java.net.URLEncoder.encode(fileName, "UTF-8")}"
+                            AsyncImage(
+                                model = imageUrl,
+                                contentDescription = fileName,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(max = 400.dp)
-                                    .verticalScroll(rememberScrollState())
+                                    .heightIn(max = 400.dp),
+                                contentScale = ContentScale.Fit,
                             )
+                        } else {
+                            state.previewContent?.let { content ->
+                                Text(
+                                    text = content,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 400.dp)
+                                        .verticalScroll(rememberScrollState())
+                                )
+                            }
                         }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.clearPreview() }) { Text("关闭") }
                     }
-                },
-                confirmButton = {
-                    TextButton(onClick = { viewModel.clearPreview() }) { Text("关闭") }
-                }
-            )
+                )
+            }
         }
+
+        // SnackbarHost 覆盖在底部
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -157,17 +198,73 @@ private fun SourceTab(
     sources: List<SourceInfo>,
     serverUrl: String,
     token: String,
+    isLoading: Boolean,
+    isCompiling: Boolean,
+    sortOption: SortOption,
     onUpload: () -> Unit,
     onRefresh: () -> Unit,
+    onCompile: () -> Unit,
+    onSort: (SortOption) -> Unit,
     onDelete: (String) -> Unit,
     onPreview: (String) -> Unit,
+    onDownload: (String) -> Unit,
 ) {
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+    val sortLabel = when (sortOption) {
+        SortOption.NAME_ASC -> "名称"
+        SortOption.DATE_DESC -> "时间"
+        SortOption.SIZE_DESC -> "大小"
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("共 ${sources.size} 个文件", style = MaterialTheme.typography.labelMedium)
-            Row {
-                IconButton(onClick = onUpload) { Icon(Icons.Filled.Upload, "上传") }
-                IconButton(onClick = onRefresh) { Icon(Icons.Filled.Refresh, "刷新") }
+        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            // 左侧：排序下拉菜单
+            Box {
+                FilterChip(
+                    selected = sortMenuExpanded,
+                    onClick = { sortMenuExpanded = !sortMenuExpanded },
+                    label = { Text("排序: $sortLabel") },
+                    trailingIcon = { Icon(Icons.Filled.ArrowDropDown, "展开排序选项") }
+                )
+                DropdownMenu(
+                    expanded = sortMenuExpanded,
+                    onDismissRequest = { sortMenuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("名称") },
+                        onClick = { onSort(SortOption.NAME_ASC); sortMenuExpanded = false }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("时间") },
+                        onClick = { onSort(SortOption.DATE_DESC); sortMenuExpanded = false }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("大小") },
+                        onClick = { onSort(SortOption.SIZE_DESC); sortMenuExpanded = false }
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 上传按钮：loading 状态时禁用并显示进度
+                IconButton(onClick = onUpload, enabled = !isLoading) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Upload, "上传")
+                    }
+                }
+                // 编译按钮：isCompiling 时显示进度
+                IconButton(onClick = onCompile, enabled = !isCompiling) {
+                    if (isCompiling) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Build, "编译")
+                    }
+                }
+                IconButton(onClick = onRefresh, enabled = !isLoading) {
+                    Icon(Icons.Filled.Refresh, "刷新")
+                }
             }
         }
 
@@ -180,13 +277,21 @@ private fun SourceTab(
                 items(sources, key = { it.name }) { source ->
                     ListItem(
                         modifier = Modifier.clickable { onPreview(source.name) },
+                        leadingContent = { getFileTypeIcon(source.name) },
                         headlineContent = { Text(source.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         supportingContent = {
                             Text("${formatBytes(source.size)} · ${source.modTime}", style = MaterialTheme.typography.bodySmall)
                         },
                         trailingContent = {
-                            IconButton(onClick = { onDelete(source.name) }) {
-                                Icon(Icons.Filled.Delete, "删除")
+                            Row {
+                                // 下载按钮
+                                IconButton(onClick = { onDownload(source.name) }) {
+                                    Icon(Icons.Filled.Download, "下载")
+                                }
+                                // 删除按钮
+                                IconButton(onClick = { onDelete(source.name) }) {
+                                    Icon(Icons.Filled.Delete, "删除")
+                                }
                             }
                         }
                     )
@@ -194,6 +299,27 @@ private fun SourceTab(
             }
         }
     }
+}
+
+/**
+ * 根据文件扩展名返回对应的图标 Composable。
+ * - .md -> Description 图标
+ * - .txt -> TextSnippet 图标
+ * - 图片 (.png/.jpg/.jpeg/.gif/.webp) -> Image 图标
+ * - 其他 -> InsertDriveFile 图标
+ */
+@Composable
+private fun getFileTypeIcon(fileName: String) {
+    val icon = when {
+        fileName.lowercase().endsWith(".md") -> Icons.Filled.Description
+        fileName.lowercase().endsWith(".txt") -> Icons.Filled.TextSnippet
+        fileName.lowercase().let {
+            it.endsWith(".png") || it.endsWith(".jpg") || it.endsWith(".jpeg") ||
+            it.endsWith(".gif") || it.endsWith(".webp")
+        } -> Icons.Filled.Image
+        else -> Icons.Filled.InsertDriveFile
+    }
+    Icon(icon, contentDescription = "文件类型")
 }
 
 @Composable

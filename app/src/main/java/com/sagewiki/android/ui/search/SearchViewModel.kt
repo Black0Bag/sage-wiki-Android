@@ -11,9 +11,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 /**
  * UI state for the Search (搜索) screen.
+ *
+ * @property query 当前搜索框中的文本。
+ * @property results 搜索返回的结果列表。
+ * @property totalCount 服务端报告的结果总数，`null` 表示尚未获取。
+ * @property isLoading `true` 时表示正在执行搜索请求。
+ * @property error 面向用户展示的错误消息，`null` 表示无错误。
+ * @property hasSearched `true` once at least one search has been executed (for empty-state logic).
+ * @property previewConceptName Concept name being previewed (null when preview dialog is closed).
+ * @property previewContent Article body content loaded for preview.
+ * @property isPreviewLoading `true` while article content is being fetched for preview.
  */
 data class SearchUiState(
     val query: String = "",
@@ -43,7 +54,9 @@ data class SearchUiState(
  */
 class SearchViewModel : ViewModel() {
 
+    /** 内部可变的 UI 状态流。 */
     private val _uiState = MutableStateFlow(SearchUiState())
+    /** 对外暴露的只读 UI 状态流，供 Composable 收集。 */
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var api: SageWikiApi? = null
@@ -51,6 +64,8 @@ class SearchViewModel : ViewModel() {
     /**
      * Initialise the API client from persisted [AppSettings].
      * Call from a `LaunchedEffect` on first composition.
+     *
+     * @param appSettings 持久化的应用设置，提供服务器地址与令牌。
      */
     fun init(appSettings: AppSettings) {
         if (api != null) return
@@ -61,7 +76,11 @@ class SearchViewModel : ViewModel() {
         }
     }
 
-    /** Update the search query text. */
+    /**
+     * Update the search query text.
+     *
+     * @param text 用户输入的最新查询文本。
+     */
     fun updateQuery(text: String) {
         _uiState.update { it.copy(query = text) }
     }
@@ -69,6 +88,9 @@ class SearchViewModel : ViewModel() {
     /**
      * Execute a search against the server with the given query string.
      * Results replace any previous list.
+     *
+     * @param query 搜索关键词，为空时直接返回。
+     * @param limit 期望返回的最大结果数，默认 20。
      */
     fun search(query: String, limit: Int = 20) {
         if (query.isBlank()) return
@@ -89,6 +111,16 @@ class SearchViewModel : ViewModel() {
                         error = null
                     )
                 }
+            } catch (e: IOException) {
+                _uiState.update {
+                    it.copy(
+                        results = emptyList(),
+                        totalCount = null,
+                        isLoading = false,
+                        hasSearched = true,
+                        error = "网络连接失败"
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -103,14 +135,18 @@ class SearchViewModel : ViewModel() {
         }
     }
 
-    /** Reset to the initial empty state (used by the clear button). */
+    /**
+     * Reset to the initial empty state (used by the clear button).
+     */
     fun clearSearch() {
         _uiState.update {
             SearchUiState()
         }
     }
 
-    /** Dismiss the current error message. */
+    /**
+     * Dismiss the current error message.
+     */
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }
@@ -118,6 +154,9 @@ class SearchViewModel : ViewModel() {
     /**
      * Load an article for preview in the search results dialog.
      * Calls `api.getArticle(path)` and exposes `body` via [SearchUiState.previewContent].
+     *
+     * @param conceptName 要预览的概念名称，作为预览弹窗的标题。
+     * @param path 文章路径，自动移除 `wiki/` 前缀后用于请求。
      */
     fun previewArticle(conceptName: String, path: String) {
         val a = api ?: return
@@ -138,6 +177,13 @@ class SearchViewModel : ViewModel() {
                         isPreviewLoading = false
                     )
                 }
+            } catch (e: IOException) {
+                _uiState.update {
+                    it.copy(
+                        previewContent = "网络连接失败",
+                        isPreviewLoading = false
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -149,7 +195,9 @@ class SearchViewModel : ViewModel() {
         }
     }
 
-    /** Dismiss the preview dialog and clear preview-related state. */
+    /**
+     * Dismiss the preview dialog and clear preview-related state.
+     */
     fun clearPreview() {
         _uiState.update {
             it.copy(
@@ -160,6 +208,9 @@ class SearchViewModel : ViewModel() {
         }
     }
 
+    /**
+     * ViewModel 被销毁时调用，释放 API 客户端引用。
+     */
     override fun onCleared() {
         super.onCleared()
         api = null

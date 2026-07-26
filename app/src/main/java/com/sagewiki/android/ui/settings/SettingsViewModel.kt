@@ -40,74 +40,101 @@ class SettingsViewModel(
     // ─────────────────────────────────────
     //  API instance
     // ─────────────────────────────────────
+    /** The current SageWiki API instance, created from the active server's URL and token. */
     var api by mutableStateOf<SageWikiApi?>(null)
         private set
 
     // ─────────────────────────────────────
     //  Server list & active server
     // ─────────────────────────────────────
+    /** The list of configured servers. */
     val serverList = mutableStateListOf<ServerConfig>()
+    /** The name of the currently active server. */
     var activeServer by mutableStateOf("")
         private set
 
     // ─────────────────────────────────────
     //  Model configuration fields
     // ─────────────────────────────────────
+    /** The summarize (LLM) model name. */
     var llmModel by mutableStateOf("")
+    /** The extract model name. */
     var extractModel by mutableStateOf("")
+    /** The write model name. */
     var writeModel by mutableStateOf("")
+    /** The lint model name. */
     var lintModel by mutableStateOf("")
+    /** The query model name. */
     var queryModel by mutableStateOf("")
+    /** The embedding model name. */
     var embeddingModel by mutableStateOf("")
+    /** The embedding provider name. */
     var embeddingProvider by mutableStateOf("")
+    /** The embedding dimensions string. */
     var embeddingDims by mutableStateOf("")
+    /** The embedding base URL. */
     var embeddingBaseUrl by mutableStateOf("")
+    /** The embedding API key. */
     var embeddingApiKey by mutableStateOf("")
+    /** The API key for the active server. */
     var apiKey by mutableStateOf("")
+    /** The API base URL for the active server. */
     var apiBaseUrl by mutableStateOf("")
 
     // ─────────────────────────────────────
     //  Model lists (from /v1/models)
     // ─────────────────────────────────────
+    /** Available LLM model IDs fetched from the server. */
     var llmModelList by mutableStateOf<List<String>>(emptyList())
         private set
+    /** Available embedding model IDs fetched from the server. */
     var embeddingModelList by mutableStateOf<List<String>>(emptyList())
         private set
 
     // ─────────────────────────────────────
     //  Picker visibility
     // ─────────────────────────────────────
+    /** Whether the LLM model picker dialog is visible. */
     var showLlmModelPicker by mutableStateOf(false)
         private set
+    /** Whether the embedding model picker dialog is visible. */
     var showEmbModelPicker by mutableStateOf(false)
         private set
 
     // Which model field the LLM picker should write into when user selects a model.
+    /** The target field for the LLM picker — determines which model config field receives the selection. */
     var pickerTargetField by mutableStateOf<ModelTargetField>(ModelTargetField.SUMMARIZE)
         private set
 
     // ─────────────────────────────────────
     //  Model test
     // ─────────────────────────────────────
+    /** The model name to test connectivity for. */
     var testModelName by mutableStateOf("")
+    /** The result of the last model test, or null if none yet. */
     var testResult by mutableStateOf<ModelTestResponse?>(null)
         private set
+    /** Whether a model connectivity test is currently in progress. */
     var testLoading by mutableStateOf(false)
         private set
 
     // ─────────────────────────────────────
     //  UI state
     // ─────────────────────────────────────
+    /** Whether the settings are currently loading from the server. */
     var isLoading by mutableStateOf(true)
         private set
+    /** Whether a save operation is currently in progress. */
     var saving by mutableStateOf(false)
         private set
+    /** The current snackbar message, or null if no snackbar is shown. */
     var snackMsg by mutableStateOf<String?>(null)
         private set
 
     // ─────────────────────────────────────
     //  Config cache
     // ─────────────────────────────────────
+    /** The cached config response from the server. */
     var config by mutableStateOf<ConfigResponse?>(null)
         private set
 
@@ -115,6 +142,7 @@ class SettingsViewModel(
     //  Enum: which model field the picker should target
     // ═════════════════════════════════════════════════════════════════════
 
+    /** Identifies which model config field the LLM picker should write the selected model into. */
     enum class ModelTargetField {
         SUMMARIZE,
         EXTRACT,
@@ -127,6 +155,7 @@ class SettingsViewModel(
     //  Initialization
     // ═════════════════════════════════════════════════════════════════════
 
+    /** Initializes the API instance, loads the server list, and fetches the current config from the server. */
     suspend fun initSettings() {
         val serverUrl = appSettings.getServerUrl()
         val token = appSettings.getBearerToken()
@@ -184,6 +213,7 @@ class SettingsViewModel(
     //  so they were never persisted server-side.
     // ═════════════════════════════════════════════════════════════════════
 
+    /** Persists the current model and API configuration to the server. */
     fun saveConfig() {
         val a = api ?: return
         viewModelScope.launch {
@@ -229,6 +259,7 @@ class SettingsViewModel(
     //  making every "refresh" button clobber the summarize field.
     // ═════════════════════════════════════════════════════════════════════
 
+    /** Fetches available LLM models from the server and opens the model picker dialog targeting [targetField]. */
     fun fetchModels(targetField: ModelTargetField = ModelTargetField.SUMMARIZE) {
         val a = api ?: return
         viewModelScope.launch {
@@ -274,6 +305,7 @@ class SettingsViewModel(
         }
     }
 
+    /** Sets the selected embedding model and closes the embedding model picker. */
     fun selectEmbeddingModel(modelId: String) {
         embeddingModel = modelId
         showEmbModelPicker = false
@@ -302,6 +334,7 @@ class SettingsViewModel(
     //  4 embed fields stale from the previous server.
     // ═════════════════════════════════════════════════════════════════════
 
+    /** Switches the active server to [name], re-creates the API instance, and reloads all config fields. */
     fun switchServer(name: String) {
         viewModelScope.launch {
             appSettings.setActiveServer(name)
@@ -343,6 +376,7 @@ class SettingsViewModel(
     //  deleteServer — remove the current server and switch to first remaining
     // ═════════════════════════════════════════════════════════════════════
 
+    /** Deletes the currently active server and switches to the first remaining server, if any. */
     fun deleteCurrentServer() {
         if (activeServer.isBlank()) return
         viewModelScope.launch {
@@ -360,6 +394,7 @@ class SettingsViewModel(
     //  testModel — send a test request to verify model connectivity
     // ═════════════════════════════════════════════════════════════════════
 
+    /** Sends a test request to verify connectivity for the configured model. */
     fun testModel() {
         val a = api ?: return
         viewModelScope.launch {
@@ -387,6 +422,7 @@ class SettingsViewModel(
     //  Snackbar helpers
     // ═════════════════════════════════════════════════════════════════════
 
+    /** Clears the current snackbar message, dismissing the snackbar. */
     fun dismissSnackbar() {
         snackMsg = null
     }

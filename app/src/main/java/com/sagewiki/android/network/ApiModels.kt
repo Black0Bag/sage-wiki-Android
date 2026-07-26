@@ -4,6 +4,7 @@ import com.google.gson.annotations.SerializedName
 
 // ========== 原有模型 ==========
 
+/** 服务健康检查响应。 */
 data class HealthResponse(
     val status: String,
     val project: String?,
@@ -12,17 +13,20 @@ data class HealthResponse(
     val timestamp: String?
 )
 
+/** 来源列表响应。 */
 data class SourcesResponse(
     val sources: List<SourceInfo>,
     val total: Int
 )
 
+/** 单个来源文件信息。 */
 data class SourceInfo(
     val name: String,
     val size: Long,
     @SerializedName("mod_time") val modTime: String
 )
 
+/** 文件上传响应。 */
 data class UploadResponse(
     val status: String,
     val filename: String?,
@@ -31,11 +35,13 @@ data class UploadResponse(
     val message: String?
 )
 
+/** 编译请求响应。 */
 data class CompileResponse(
     val status: String,
     val message: String?
 )
 
+/** 分享操作响应。 */
 data class ShareResponse(
     val status: String,
     val filename: String?,
@@ -43,6 +49,7 @@ data class ShareResponse(
     val message: String?
 )
 
+/** 分享内容请求体。 */
 data class ShareRequest(
     val title: String,
     val text: String,
@@ -50,17 +57,20 @@ data class ShareRequest(
     val source: String = "android"
 )
 
+/** 文章详情响应。 */
 data class ArticleResponse(
     val path: String?,
     val frontmatter: Map<String, Any>?,
     val body: String?
 )
 
+/** 写入文章请求体。 */
 data class ArticleWriteRequest(
     val path: String,
     val content: String
 )
 
+/** 更新来源内容请求体。 */
 data class SourceUpdateRequest(
     val name: String,
     val content: String
@@ -68,6 +78,7 @@ data class SourceUpdateRequest(
 
 // ========== 配置模型 ==========
 
+/** 项目配置响应。 */
 data class ConfigResponse(
     val project: String?,
     val description: String?,
@@ -83,6 +94,7 @@ data class ConfigResponse(
     @SerializedName("embedding_api_base") val embeddingApiBase: String?
 )
 
+/** API 连接配置响应。 */
 data class ApiConfigResponse(
     val provider: String?,
     @SerializedName("api_key") val apiKey: String?,
@@ -90,6 +102,7 @@ data class ApiConfigResponse(
     @SerializedName("rate_limit") val rateLimit: Int?
 )
 
+/** 各任务所用模型名称配置响应。 */
 data class ModelsConfigResponse(
     val summarize: String?,
     val extract: String?,
@@ -98,6 +111,7 @@ data class ModelsConfigResponse(
     val query: String?
 )
 
+/** 向量化（Embedding）配置响应。 */
 data class EmbedConfigResponse(
     val provider: String?,
     val model: String?,
@@ -107,6 +121,7 @@ data class EmbedConfigResponse(
     @SerializedName("rate_limit") val rateLimit: Int?
 )
 
+/** 编译器配置响应。 */
 data class CompilerConfigResponse(
     @SerializedName("max_parallel") val maxParallel: Int?,
     @SerializedName("summary_max_tokens") val summaryMaxTokens: Int?,
@@ -114,14 +129,17 @@ data class CompilerConfigResponse(
     val mode: String?
 )
 
+/** 搜索配置响应。 */
 data class SearchConfigResponse(
     @SerializedName("default_limit") val defaultLimit: Int?
 )
 
+/** Serve 服务端口配置响应。 */
 data class ServeConfigResponse(
     val port: Int?
 )
 
+/** 更新配置请求体。 */
 data class ConfigUpdateRequest(
     val project: String? = null,
     val language: String? = null,
@@ -140,33 +158,39 @@ data class ConfigUpdateRequest(
     @SerializedName("embedding_dims") val embeddingDims: Int? = null
 )
 
+/** 配置更新响应。 */
 data class ConfigUpdateResponse(
     val status: String?,
     val project: String?
 )
 
+/** 可用模型列表响应（兼容 OpenAI 风格）。 */
 data class ModelsFetchResponse(
     val `object`: String?,
     val data: List<ModelInfo>?
 )
 
+/** 单个模型信息。 */
 data class ModelInfo(
     val id: String,
     val `object`: String?
 )
 
+/** Manifest 清单响应。 */
 data class ManifestResponse(
     val concepts: Map<String, ConceptInfo>?,
     val summaries: List<String>?,
     val sources: Map<String, SourceManifestInfo>?
 )
 
+/** 概念条目详情。 */
 data class ConceptInfo(
     @SerializedName("article_path") val articlePath: String?,
     @SerializedName("last_compiled") val lastCompiled: String?,
     val sources: List<String>?
 )
 
+/** 来源在 Manifest 中的元信息。 */
 data class SourceManifestInfo(
     @SerializedName("added_at") val addedAt: String?,
     @SerializedName("compiled_at") val compiledAt: String?,
@@ -179,6 +203,7 @@ data class SourceManifestInfo(
 
 // ========== v1.1.0 新增模型 ==========
 
+/** 知识库状态统计响应。 */
 data class StatusResponse(
     val project: String?,
     val entries: Int?,
@@ -188,6 +213,7 @@ data class StatusResponse(
     val relations: Int?
 )
 
+/** 系统运行信息响应。 */
 data class SysInfoResponse(
     val go: GoRuntimeInfo?,
     val memory: MemoryInfo?,
@@ -200,6 +226,7 @@ data class SysInfoResponse(
     val version: String?
 )
 
+/** Go 运行时信息。 */
 data class GoRuntimeInfo(
     val version: String?,
     val goroutines: Int?,
@@ -211,6 +238,7 @@ data class GoRuntimeInfo(
     @SerializedName("num_gc") val numGC: Int?
 )
 
+/** 内存使用信息。 */
 data class MemoryInfo(
     val total: Long?,
     val used: Long?,
@@ -219,6 +247,7 @@ data class MemoryInfo(
     @SerializedName("usage_percent") val usagePercent: Double?
 )
 
+/** 磁盘使用信息。 */
 data class DiskInfo(
     val total: Long?,
     val used: Long?,
@@ -226,12 +255,14 @@ data class DiskInfo(
     @SerializedName("usage_percent") val usagePercent: Double?
 )
 
+/** 系统负载信息。 */
 data class LoadInfo(
     @SerializedName("load_1") val load1: Double?,
     @SerializedName("load_5") val load5: Double?,
     @SerializedName("load_15") val load15: Double?
 )
 
+/** 单个温度传感器读数。 */
 data class TempInfo(
     val zone: Int?,
     val type: String?,
@@ -239,6 +270,7 @@ data class TempInfo(
     @SerializedName("temp_raw") val tempRaw: Int?
 )
 
+/** 模型连通性测试请求体。 */
 data class ModelTestRequest(
     val provider: String? = null,
     @SerializedName("base_url") val baseUrl: String? = null,
@@ -246,6 +278,7 @@ data class ModelTestRequest(
     val model: String? = null
 )
 
+/** 模型连通性测试响应。 */
 data class ModelTestResponse(
     val success: Boolean,
     val model: String?,
@@ -254,11 +287,13 @@ data class ModelTestResponse(
     val error: String?
 )
 
+/** 知识图谱响应。 */
 data class GraphResponse(
     val nodes: List<GraphNode>?,
     val edges: List<GraphEdge>?
 )
 
+/** 图谱节点。 */
 data class GraphNode(
     val id: String,
     val name: String? = null,
@@ -267,6 +302,7 @@ data class GraphNode(
     val definition: String? = null
 )
 
+/** 图谱边。 */
 data class GraphEdge(
     val source: String,
     val target: String,
@@ -275,12 +311,14 @@ data class GraphEdge(
 
 // ============ 搜索 API ============
 
+/** 语义搜索响应。 */
 data class SearchResponse(
     val results: List<SearchResult>? = null,
     val total: Int? = null,
     val query: String? = null
 )
 
+/** 单条搜索结果。 */
 data class SearchResult(
     val id: String? = null,
     val path: String? = null,
@@ -290,11 +328,13 @@ data class SearchResult(
 
 // ============ LLM 查询 API ============
 
+/** LLM 问答请求体。 */
 data class QueryRequest(
     val question: String,
     @SerializedName("top_k") val topK: Int? = null
 )
 
+/** LLM 问答响应。 */
 data class QueryResponse(
     val answer: String? = null,
     val sources: List<String>? = null,
@@ -303,11 +343,13 @@ data class QueryResponse(
 
 // ============ 来源追溯 API ============
 
+/** 文章来源追溯响应。 */
 data class ProvenanceResponse(
     val article: String? = null,
     val sources: List<ProvenanceSource>? = null
 )
 
+/** 单个来源追溯条目。 */
 data class ProvenanceSource(
     val path: String? = null,
     val type: String? = null,

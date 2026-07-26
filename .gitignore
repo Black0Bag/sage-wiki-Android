@@ -1,4 +1,8 @@
 *.iml
+# Release signing keystore — never commit
+/keystore/
+*.jks
+*.keystore
 .gradle
 /local.properties
 /.idea

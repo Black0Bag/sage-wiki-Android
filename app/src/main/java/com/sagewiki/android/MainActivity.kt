@@ -23,6 +23,10 @@ import com.sagewiki.android.ui.browse.BrowseScreen
 import com.sagewiki.android.ui.qa.QAScreen
 import com.sagewiki.android.ui.theme.SageWikiTheme
 
+/**
+ * 应用主 Activity，负责初始化设置、处理外部分享意图，
+ * 并根据完成状态切换 SetupScreen 或 AppMainScreen。
+ */
 class MainActivity : ComponentActivity() {
 
     private lateinit var settings: AppSettings
@@ -74,6 +78,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * 从 [Intent.ACTION_SEND] 意图中提取分享文本，
+     * 解析出标题、正文和 URL 并封装为 [ShareData]。
+     */
     private fun extractSharedText(intent: Intent?): ShareData? {
         if (intent?.action != Intent.ACTION_SEND) return null
         val type = intent.type ?: return null
@@ -85,12 +93,18 @@ class MainActivity : ComponentActivity() {
         return ShareData(title = title, text = body, url = url)
     }
 
+    /**
+     * 从给定文本中尝试解析出 http/https URL，未匹配则返回 null。
+     */
     private fun extractUrl(text: String?): String? {
         if (text == null) return null
         val uri = Uri.parse(text.trim())
         return if (uri.scheme != null && (uri.scheme == "http" || uri.scheme == "https")) uri.toString() else null
     }
 
+    /**
+     * 外部分享数据的载体，包含标题、正文和提取的 URL。
+     */
     data class ShareData(val title: String, val text: String, val url: String)
 
     companion object {
@@ -100,6 +114,10 @@ class MainActivity : ComponentActivity() {
 
 // === 六屏导航 ===
 
+/**
+ * 应用主界面 Composable，提供仪表板、文件库、搜索、浏览、问答、配置六屏导航，
+ * 以及关于页的显示与返回键拦截逻辑。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppMainScreen(appSettings: AppSettings) {

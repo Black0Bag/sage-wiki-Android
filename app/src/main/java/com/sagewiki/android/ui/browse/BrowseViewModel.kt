@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.SageWikiApi
 import kotlinx.coroutines.Dispatchers
+import java.io.IOException
+import com.google.gson.JsonParseException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +24,8 @@ import kotlinx.coroutines.launch
  *
  * 本 ViewModel 将初始化与加载合并在同一个协程流程中：
  * initApi() 完成后立即调用 loadData()，从根本上消除竞态。
+ *
+ * @param appSettings 应用设置，提供服务器地址和认证令牌。
  */
 class BrowseViewModel(
     private val appSettings: AppSettings
@@ -52,9 +56,11 @@ class BrowseViewModel(
     // ── 加载与错误状态 ────────────────────────────────────────
 
     private val _isLoading = MutableStateFlow(false)
+    /** 是否正在加载数据 */
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _error = MutableStateFlow<String?>(null)
+    /** 最近一次加载操作的错误信息，null 表示无错误 */
     val error: StateFlow<String?> = _error.asStateFlow()
 
     // ── 初始化 ────────────────────────────────────────────────
@@ -103,8 +109,12 @@ class BrowseViewModel(
                 }
 
                 _conceptList.value = concepts
+            } catch (e: IOException) {
+                _error.value = "网络连接失败"
+            } catch (e: JsonParseException) {
+                _error.value = "数据解析失败"
             } catch (e: Exception) {
-                _error.value = "加载知识树失败: ${e.message}"
+                _error.value = "加载失败: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
@@ -113,6 +123,8 @@ class BrowseViewModel(
 
     /**
      * 加载指定概念的文章内容，并设为当前选中文章。
+     *
+     * @param concept 要加载的概念名称。
      */
     fun loadArticle(concept: String) {
         val currentApi = _api.value ?: run {
@@ -127,6 +139,10 @@ class BrowseViewModel(
             try {
                 val article = currentApi.getArticle(concept)
                 _articleContent.value = article.body
+            } catch (e: IOException) {
+                _articleContent.value = "网络连接失败"
+            } catch (e: JsonParseException) {
+                _articleContent.value = "数据解析失败"
             } catch (e: Exception) {
                 _articleContent.value = "加载失败: ${e.message}"
             } finally {
@@ -164,6 +180,13 @@ class BrowseViewModel(
     class Factory(
         private val appSettings: AppSettings
     ) : ViewModelProvider.Factory {
+        /**
+         * 创建指定类型的 ViewModel 实例。
+         *
+         * @param modelClass 需要创建的 ViewModel 类型。
+         * @return 对应类型的 ViewModel 实例。
+         * @throws IllegalArgumentException 如果传入的类型不是 [BrowseViewModel]。
+         */
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(BrowseViewModel::class.java)) {

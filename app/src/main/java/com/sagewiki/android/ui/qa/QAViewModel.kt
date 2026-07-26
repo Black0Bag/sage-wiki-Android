@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.SocketTimeoutException
 import java.util.UUID
 
 /**
@@ -62,6 +64,7 @@ data class QaMessage(
 class QAViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow(QaUiState())
+    /** Exposes the current QA UI state as a observable [StateFlow] for Composables to collect. */
     val uiState: StateFlow<QaUiState> = _uiState.asStateFlow()
 
     private var api: SageWikiApi? = null
@@ -236,6 +239,42 @@ class QAViewModel : ViewModel() {
                         )
                     }
                 }
+            } catch (e: java.net.SocketTimeoutException) {
+                val errorMsg = "请求超时，请稍后重试"
+                _uiState.update { state ->
+                    state.copy(
+                        messages = state.messages.map { msg ->
+                            if (msg.id == assistantMsgId) {
+                                msg.copy(
+                                    content = "❌ $errorMsg",
+                                    isStreaming = false
+                                )
+                            } else {
+                                msg
+                            }
+                        },
+                        isLoading = false,
+                        error = errorMsg
+                    )
+                }
+            } catch (e: java.io.IOException) {
+                val errorMsg = "网络连接失败，请检查服务器地址"
+                _uiState.update { state ->
+                    state.copy(
+                        messages = state.messages.map { msg ->
+                            if (msg.id == assistantMsgId) {
+                                msg.copy(
+                                    content = "❌ $errorMsg",
+                                    isStreaming = false
+                                )
+                            } else {
+                                msg
+                            }
+                        },
+                        isLoading = false,
+                        error = errorMsg
+                    )
+                }
             } catch (e: Exception) {
                 val errorMsg = "查询失败: ${e.message ?: e::class.simpleName ?: "未知错误"}"
                 _uiState.update { state ->
@@ -329,6 +368,7 @@ class QAViewModel : ViewModel() {
         _uiState.update { it.copy(error = null) }
     }
 
+    /** Called when the ViewModel is no longer used; releases the API client reference. */
     override fun onCleared() {
         super.onCleared()
         api = null

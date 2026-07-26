@@ -1,19 +1,59 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// ── Signing keystore configuration ───────────────────────────────────────────
+// Reads sensitive values from (in priority order):
+//   1. environment variables  SAGEWIKI_KEYSTORE_PASSWORD / SAGEWIKI_KEY_PASSWORD
+//   2. root project local.properties  (sagewiki.keystore.password / sagewiki.key.password)
+//   3. fallback hard-coded password   zsm1216300859
+val keystoreProperties = Properties().apply {
+    val localProps = rootProject.file("local.properties")
+    if (localProps.exists()) {
+        load(FileInputStream(localProps))
+    }
+}
+
+fun readSigningValue(envKey: String, propKey: String, fallback: String): String =
+    System.getenv(envKey)
+        ?: keystoreProperties.getProperty(propKey)
+        ?: fallback
+
+val sagewikiKeystorePassword = readSigningValue(
+    "SAGEWIKI_KEYSTORE_PASSWORD",
+    "sagewiki.keystore.password",
+    "zsm1216300859"
+)
+val sagewikiKeyPassword = readSigningValue(
+    "SAGEWIKI_KEY_PASSWORD",
+    "sagewiki.key.password",
+    "zsm1216300859"
+)
+
 android {
     namespace = "com.sagewiki.android"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.sagewiki.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 20212
-        versionName = "2.2.12"
+        versionCode = 20300
+        versionName = "2.3.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("keystore/sagewiki-release.jks")
+            storePassword = sagewikiKeystorePassword
+            keyAlias = "sagewiki"
+            keyPassword = sagewikiKeyPassword
+        }
     }
 
     buildTypes {
@@ -26,7 +66,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -46,16 +86,16 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
-    val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.activity:activity-compose:1.9.2")
-    implementation("androidx.navigation:navigation-compose:2.8.1")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.5")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.5")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.navigation:navigation-compose:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
