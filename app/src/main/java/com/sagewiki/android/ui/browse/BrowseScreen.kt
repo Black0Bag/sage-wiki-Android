@@ -64,13 +64,11 @@ fun BrowseScreen(appSettings: AppSettings) {
             } else {
                 articleContent?.let { rawContent ->
                     // 预处理 wiki-link：把 [[concept-slug]] 替换为标准 Markdown 链接
-                    val processedContent = rawContent.replace(
-                        Regex("\\[\\[([^\\]]+)\\]\\]"),
-                        matchResult = { mr ->
-                            val slug = mr.groupValues[1]
-                            "[$slug](sagewiki://concept/$slug)"
-                        }
-                    )
+                    val wikiLinkRegex = Regex("\\[\\[([^\\]]+)\\]\\]")
+                    val processedContent = rawContent.replace(wikiLinkRegex) { mr ->
+                        val slug = mr.groupValues[1]
+                        "[$slug](sagewiki://concept/$slug)"
+                    }
 
                     // 拦截 sagewiki:// 链接，跳转到对应概念文章
                     val onLinkClicked: (String) -> Unit = remember(viewModel) {
@@ -91,8 +89,8 @@ fun BrowseScreen(appSettings: AppSettings) {
                                 content = processedContent,
                                 colors = markdownColor(),
                                 typography = markdownTypography(),
-                                onLinkClicked = onLinkClicked
                             )
+                            // TODO: onLinkClicked 需要适配 markdown renderer 0.27.0 API
                         }
                     }
                 }
