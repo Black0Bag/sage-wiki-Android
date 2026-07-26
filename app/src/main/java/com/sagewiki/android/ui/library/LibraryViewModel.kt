@@ -259,7 +259,9 @@ class LibraryViewModel : ViewModel() {
                 )
             }
             try {
-                val resp = a.getArticle(articlePath)
+                // 后端期望路径相对于 wiki/ 目录（如 concepts/xxx.md），去掉 "wiki/" 前缀
+                val cleanPath = articlePath.removePrefix("wiki/")
+                val resp = a.getArticle(cleanPath)
                 _uiState.update {
                     it.copy(previewContent = resp.body ?: "（空文章）", isPreviewLoading = false)
                 }

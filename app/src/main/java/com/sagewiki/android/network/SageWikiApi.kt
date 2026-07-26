@@ -39,7 +39,7 @@ interface SageWikiApi {
     suspend fun share(@Body body: ShareRequest): ShareResponse
 
     @GET("api/articles/{path}")
-    suspend fun getArticle(@Path("path") path: String): ArticleResponse
+    suspend fun getArticle(@Path(value = "path", encoded = true) path: String): ArticleResponse
 
     @PUT("api/article")
     suspend fun writeArticle(@Body body: ArticleWriteRequest): Map<String, Any>
