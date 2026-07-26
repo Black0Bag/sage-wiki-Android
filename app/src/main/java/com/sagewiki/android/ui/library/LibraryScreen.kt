@@ -102,7 +102,10 @@ fun LibraryScreen(appSettings: AppSettings) {
                 onDelete = { viewModel.deleteSource(it) },
                 onPreview = { viewModel.previewSource(it) }
             )
-            LibraryTab.COMPILATION -> CompilationTab(state.manifest)
+            LibraryTab.COMPILATION -> CompilationTab(
+                manifest = state.manifest,
+                onPreviewArticle = { path, name -> viewModel.previewArticle(path, name) }
+            )
             LibraryTab.GRAPH -> GraphTab(state.graph)
         }
 
@@ -193,7 +196,10 @@ private fun SourceTab(
 }
 
 @Composable
-private fun CompilationTab(manifest: ManifestResponse?) {
+private fun CompilationTab(
+    manifest: ManifestResponse?,
+    onPreviewArticle: (articlePath: String, conceptName: String) -> Unit,
+) {
     if (manifest == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("暂无编译数据") }
         return
@@ -216,8 +222,12 @@ private fun CompilationTab(manifest: ManifestResponse?) {
             concepts.entries.forEach { (name, info) ->
                 item {
                     ListItem(
+                        modifier = Modifier.clickable {
+                            info.articlePath?.let { path -> onPreviewArticle(path, name) }
+                        },
                         headlineContent = { Text(name, fontWeight = FontWeight.Medium) },
-                        supportingContent = { Text("编译: ${info.lastCompiled ?: "—"} · 源: ${info.sources?.joinToString(", ") ?: "—"}") }
+                        supportingContent = { Text("编译: ${info.lastCompiled ?: "—"} · 源: ${info.sources?.joinToString(", ") ?: "—"}") },
+                        trailingContent = { Icon(Icons.Filled.ChevronRight, "查看") }
                     )
                 }
             }

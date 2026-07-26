@@ -246,6 +246,34 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    /** Load a compiled article for preview (from Compilation tab). */
+    fun previewArticle(articlePath: String, conceptName: String) {
+        val a = api ?: return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    previewFileName = conceptName,
+                    previewContent = null,
+                    isPreviewLoading = true,
+                    isPreviewImage = false,
+                )
+            }
+            try {
+                val resp = a.getArticle(articlePath)
+                _uiState.update {
+                    it.copy(previewContent = resp.body ?: "（空文章）", isPreviewLoading = false)
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        previewContent = "加载失败: ${e.message}",
+                        isPreviewLoading = false
+                    )
+                }
+            }
+        }
+    }
+
     /** Dismiss the current error message. */
     fun clearError() {
         _uiState.update { it.copy(error = null) }

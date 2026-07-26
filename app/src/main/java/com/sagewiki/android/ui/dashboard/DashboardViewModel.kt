@@ -99,16 +99,16 @@ class DashboardViewModel(
                 repository = SageWikiRepository.create(url, token)
                 val repo = repository!!
 
-                // 并行请求 4 个接口，缩短刷新时间
-                val healthDeferred = async { repo.health() }
-                val statusDeferred = async { repo.getStatus() }
-                val sourcesDeferred = async { repo.getSources() }
-                val sysInfoDeferred = async { repo.getSysInfo() }
+                // 并行请求 4 个接口，每个独立 try-catch 防止一个失败导致全部崩溃
+                val healthDeferred = async { runCatching { repo.health() }.getOrNull() }
+                val statusDeferred = async { runCatching { repo.getStatus() }.getOrNull() }
+                val sourcesDeferred = async { runCatching { repo.getSources() }.getOrNull() }
+                val sysInfoDeferred = async { runCatching { repo.getSysInfo() }.getOrNull() }
 
-                _healthOk.value = healthDeferred.await().status == "healthy"
-                _status.value = statusDeferred.await()
-                _sourcesTotal.value = sourcesDeferred.await().total
-                _sysInfo.value = sysInfoDeferred.await()
+                healthDeferred.await()?.let { _healthOk.value = it.status == "healthy" }
+                statusDeferred.await()?.let { _status.value = it }
+                sourcesDeferred.await()?.let { _sourcesTotal.value = it.total }
+                sysInfoDeferred.await()?.let { _sysInfo.value = it }
 
                 _error.value = null
                 hasData = true
@@ -130,7 +130,11 @@ class DashboardViewModel(
         viewModelScope.launch {
             while (true) {
                 delay(15_000)
-                refresh()
+                try {
+                    refresh()
+                } catch (e: Exception) {
+                    // 静默吞掉自动刷新中的异常，防止崩溃
+                }
             }
         }
     }
