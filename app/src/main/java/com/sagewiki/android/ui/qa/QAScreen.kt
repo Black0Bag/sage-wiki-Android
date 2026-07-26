@@ -1,6 +1,9 @@
 package com.sagewiki.android.ui.qa
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -14,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
@@ -26,6 +30,9 @@ fun QAScreen(appSettings: AppSettings) {
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
 
+    // State for the source preview dialog: Pair<fileName, content>
+    var previewContent by remember { mutableStateOf<Pair<String, String>?>(null) }
+
     LaunchedEffect(Unit) {
         viewModel.init(appSettings)
     }
@@ -36,6 +43,36 @@ fun QAScreen(appSettings: AppSettings) {
             delay(100)
             listState.animateScrollToItem(state.messages.size - 1)
         }
+    }
+
+    // Source preview dialog
+    previewContent?.let { (fileName, content) ->
+        AlertDialog(
+            onDismissRequest = { previewContent = null },
+            title = {
+                Text(
+                    text = fileName,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleSmall
+                )
+            },
+            text = {
+                // Scrollable text area for source content
+                val scrollState = rememberScrollState()
+                Text(
+                    text = content,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { previewContent = null }) {
+                    Text("关闭")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -83,7 +120,14 @@ fun QAScreen(appSettings: AppSettings) {
                         key = { it.id }
                     ) { msg ->
                         MessageBubble(
-                            message = msg
+                            message = msg,
+                            onSourceClick = { sourcePath ->
+                                viewModel.previewSource(sourcePath) { content ->
+                                    // content is the raw file text (or an error message)
+                                    // We store it in a per-message preview state via a shared callback
+                                    previewContent = sourcePath to content
+                                }
+                            }
                         )
                     }
                 }
@@ -129,7 +173,10 @@ fun QAScreen(appSettings: AppSettings) {
  * assistant messages are left-aligned with [surfaceVariant] colour.
  */
 @Composable
-private fun MessageBubble(message: QaMessage) {
+private fun MessageBubble(
+    message: QaMessage,
+    onSourceClick: (String) -> Unit = {}
+) {
     val isUser = message.role == "user"
     val bubbleColor = if (isUser)
         MaterialTheme.colorScheme.primary
@@ -206,7 +253,9 @@ private fun MessageBubble(message: QaMessage) {
                                 Text(
                                     text = "  • $path",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = textColor.copy(alpha = 0.7f)
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textDecoration = TextDecoration.Underline,
+                                    modifier = Modifier.clickable { onSourceClick(path) }
                                 )
                             }
                         }

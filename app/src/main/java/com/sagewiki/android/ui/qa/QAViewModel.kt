@@ -295,6 +295,30 @@ class QAViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Fetch the raw content of a source file for preview.
+     * Calls `api/sources/raw/{name}` and returns the file content as a string.
+     * Returns an error message string if the fetch fails.
+     */
+    fun previewSource(sourcePath: String, onResult: (String) -> Unit) {
+        val a = api
+        if (a == null) {
+            onResult("API 尚未初始化")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                // Extract the file name from the full path (e.g. "dir/subdir/file.md" → "file.md")
+                val fileName = sourcePath.substringAfterLast("/")
+                val responseBody = a.getSourceRaw(fileName)
+                val content = responseBody.string()
+                onResult(content.ifEmpty { "（空文件）" })
+            } catch (e: Exception) {
+                onResult("加载失败: ${e.message}")
+            }
+        }
+    }
+
     /** Clear the entire conversation history. */
     fun clearMessages() {
         _uiState.update { it.copy(messages = emptyList(), error = null) }

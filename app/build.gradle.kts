@@ -12,8 +12,8 @@ android {
         applicationId = "com.sagewiki.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 20203
-        versionName = "2.2.3"
+        versionCode = 20210
+        versionName = "2.2.10"
     }
 
     buildTypes {

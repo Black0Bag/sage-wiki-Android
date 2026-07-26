@@ -62,16 +62,36 @@ fun BrowseScreen(appSettings: AppSettings) {
                     CircularProgressIndicator()
                 }
             } else {
-                articleContent?.let { content ->
+                articleContent?.let { rawContent ->
+                    // 预处理 wiki-link：把 [[concept-slug]] 替换为标准 Markdown 链接
+                    val processedContent = rawContent.replace(
+                        Regex("\\[\\[([^\\]]+)\\]\\]"),
+                        matchResult = { mr ->
+                            val slug = mr.groupValues[1]
+                            "[$slug](sagewiki://concept/$slug)"
+                        }
+                    )
+
+                    // 拦截 sagewiki:// 链接，跳转到对应概念文章
+                    val onLinkClicked: (String) -> Unit = remember(viewModel) {
+                        { link ->
+                            if (link.startsWith("sagewiki://concept/")) {
+                                val slug = link.removePrefix("sagewiki://concept/")
+                                viewModel.loadArticle(slug)
+                            }
+                        }
+                    }
+
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(16.dp),
                         contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
                         item {
                             Markdown(
-                                content = content,
+                                content = processedContent,
                                 colors = markdownColor(),
-                                typography = markdownTypography()
+                                typography = markdownTypography(),
+                                onLinkClicked = onLinkClicked
                             )
                         }
                     }

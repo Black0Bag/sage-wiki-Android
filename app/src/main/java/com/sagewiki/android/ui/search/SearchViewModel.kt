@@ -3,6 +3,7 @@ package com.sagewiki.android.ui.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sagewiki.android.data.AppSettings
+import com.sagewiki.android.network.ArticleResponse
 import com.sagewiki.android.network.SageWikiApi
 import com.sagewiki.android.network.SearchResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +22,13 @@ data class SearchUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     /** `true` once at least one search has been executed (for empty-state logic). */
-    val hasSearched: Boolean = false
+    val hasSearched: Boolean = false,
+    /** Concept name being previewed (null when preview dialog is closed). */
+    val previewConceptName: String? = null,
+    /** Article body content loaded for preview. */
+    val previewContent: String? = null,
+    /** `true` while article content is being fetched for preview. */
+    val isPreviewLoading: Boolean = false
 )
 
 /**
@@ -106,6 +113,51 @@ class SearchViewModel : ViewModel() {
     /** Dismiss the current error message. */
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    /**
+     * Load an article for preview in the search results dialog.
+     * Calls `api.getArticle(path)` and exposes `body` via [SearchUiState.previewContent].
+     */
+    fun previewArticle(conceptName: String, path: String) {
+        val a = api ?: return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    previewConceptName = conceptName,
+                    previewContent = null,
+                    isPreviewLoading = true
+                )
+            }
+            try {
+                val cleanPath = path.removePrefix("wiki/")
+                val resp = a.getArticle(cleanPath)
+                _uiState.update {
+                    it.copy(
+                        previewContent = resp.body ?: "（空文章）",
+                        isPreviewLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        previewContent = "加载失败: ${e.message}",
+                        isPreviewLoading = false
+                    )
+                }
+            }
+        }
+    }
+
+    /** Dismiss the preview dialog and clear preview-related state. */
+    fun clearPreview() {
+        _uiState.update {
+            it.copy(
+                previewConceptName = null,
+                previewContent = null,
+                isPreviewLoading = false
+            )
+        }
     }
 
     override fun onCleared() {

@@ -1,11 +1,15 @@
 package com.sagewiki.android.ui.search
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +23,9 @@ import com.sagewiki.android.data.AppSettings
 fun SearchScreen(appSettings: AppSettings) {
     val viewModel: SearchViewModel = viewModel()
     val state by viewModel.uiState.collectAsState()
+
+    // 预览状态: Pair<概念名, 路径>
+    var previewPath by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.init(appSettings)
@@ -96,35 +103,94 @@ fun SearchScreen(appSettings: AppSettings) {
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             items(state.results) { result ->
+                val conceptName = result.id ?: result.path ?: "未知"
+                val articlePath = result.path ?: ""
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .clickable {
+                            previewPath = Pair(conceptName, articlePath)
+                            viewModel.previewArticle(conceptName, articlePath)
+                        },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = result.id ?: result.path ?: "未知",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = conceptName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (!result.snippet.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = result.snippet,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 3
+                                )
+                            }
+                            result.score?.let { score ->
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "相关性: ${String.format("%.2f", score)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Filled.ChevronRight,
+                            contentDescription = "预览",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (!result.snippet.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = result.snippet,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 3
-                            )
-                        }
-                        result.score?.let { score ->
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "相关性: ${String.format("%.2f", score)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
                 }
             }
+        }
+
+        // 文章预览对话框
+        if (previewPath != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    previewPath = null
+                    viewModel.clearPreview()
+                },
+                title = {
+                    Text(
+                        text = previewPath?.first ?: "预览",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    if (state.isPreviewLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        Text(
+                            text = state.previewContent ?: "（无内容）",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        previewPath = null
+                        viewModel.clearPreview()
+                    }) {
+                        Text("关闭")
+                    }
+                }
+            )
         }
     }
 }

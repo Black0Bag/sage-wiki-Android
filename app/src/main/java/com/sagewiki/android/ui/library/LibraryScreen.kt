@@ -104,7 +104,8 @@ fun LibraryScreen(appSettings: AppSettings) {
             )
             LibraryTab.COMPILATION -> CompilationTab(
                 manifest = state.manifest,
-                onPreviewArticle = { path, name -> viewModel.previewArticle(path, name) }
+                onPreviewArticle = { path, name -> viewModel.previewArticle(path, name) },
+                onPreviewSource = { name -> viewModel.previewSource(name) }
             )
             LibraryTab.GRAPH -> GraphTab(state.graph)
         }
@@ -199,6 +200,7 @@ private fun SourceTab(
 private fun CompilationTab(
     manifest: ManifestResponse?,
     onPreviewArticle: (articlePath: String, conceptName: String) -> Unit,
+    onPreviewSource: (fileName: String) -> Unit,
 ) {
     if (manifest == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("暂无编译数据") }
@@ -238,6 +240,7 @@ private fun CompilationTab(
             sources.entries.forEach { (path, info) ->
                 item {
                     ListItem(
+                        modifier = Modifier.clickable { onPreviewSource(path.substringAfterLast("/")) },
                         headlineContent = { Text(path.substringAfterLast("/"), fontWeight = FontWeight.Medium) },
                         supportingContent = { Text("状态: ${info.status ?: "—"} · 类型: ${info.type ?: "—"} · ${info.sizeBytes ?: 0}B") },
                         trailingContent = {
@@ -313,7 +316,34 @@ private fun GraphTab(graph: GraphResponse?) {
                         Text("定义", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(def, style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState()))
+                            modifier = Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState()))
+                    }
+                    // 显示连接关系列表
+                    val connectedEdges = graph.edges?.filter { it.source == node.id || it.target == node.id } ?: emptyList()
+                    if (connectedEdges.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("连接关系 (${connectedEdges.size})", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        connectedEdges.forEach { edge ->
+                            val otherNodeId = if (edge.source == node.id) edge.target else edge.source
+                            val otherNode = graph.nodes?.find { it.id == otherNodeId }
+                            val arrow = if (edge.source == node.id) "→" else "←"
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        otherNode?.let { selectedNode = it }
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("$arrow ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                Text(otherNode?.name ?: otherNodeId, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                                edge.relation?.let { rel ->
+                                    Text("  ($rel)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
                     }
                 }
             },
