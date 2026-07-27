@@ -24,10 +24,6 @@ interface SageWikiApi {
     @GET("api/status")
     suspend fun getStatus(): StatusResponse
 
-    /** Retrieves system information from the backend. */
-    @GET("api/sysinfo")
-    suspend fun getSysInfo(): SysInfoResponse
-
     /** Fetches the current server configuration. */
     @GET("api/config")
     suspend fun getConfig(): ConfigResponse
@@ -81,14 +77,6 @@ interface SageWikiApi {
     @GET("api/models")
     suspend fun getModels(@Query("fetch") fetch: Boolean = false): ModelsFetchResponse
 
-    /** Tests connectivity to a model with the given configuration. */
-    @POST("api/models/test")
-    suspend fun testModel(@Body body: ModelTestRequest): ModelTestResponse
-
-    /** Retrieves the full page tree structure. */
-    @GET("api/tree")
-    suspend fun getTree(): Map<String, Any>
-
     /** Retrieves the graph data for visualization. */
     @GET("api/graph")
     suspend fun getGraph(): GraphResponse
@@ -120,6 +108,24 @@ interface SageWikiApi {
         @Query("source") source: String? = null
     ): ProvenanceResponse
 
+    /** Retrieves provenance information for a specific article path. */
+    @GET("api/provenance")
+    suspend fun getProvenance(@Query("path") path: String): ProvenanceResponse
+
+    // ============================ v3.0.0 新增端点 ============================
+
+    /** GET /api/tree — directory tree */
+    @GET("api/tree")
+    suspend fun getTree(): TreeResponse
+
+    /** GET /api/sysinfo — system info */
+    @GET("api/sysinfo")
+    suspend fun getSysInfo(): SysInfoResponse
+
+    /** POST /api/models/test — test model connectivity */
+    @POST("api/models/test")
+    suspend fun testModel(@Body request: ModelTestRequest): ModelTestResponse
+
     companion object {
         /** Creates a [SageWikiApi] instance with default timeouts and optional auth token. */
         fun create(baseUrl: String, token: String? = null): SageWikiApi {
@@ -138,7 +144,7 @@ interface SageWikiApi {
                     chain.proceed(request.build())
                 }
                 .addInterceptor(logging)
-                .connectTimeout(15, TimeUnit.SECONDS)
+                .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(300, TimeUnit.SECONDS)
                 .writeTimeout(300, TimeUnit.SECONDS)
                 .build()

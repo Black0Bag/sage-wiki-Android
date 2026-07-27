@@ -25,6 +25,9 @@ import kotlinx.coroutines.launch
  * 本 ViewModel 将初始化与加载合并在同一个协程流程中：
  * initApi() 完成后立即调用 loadData()，从根本上消除竞态。
  *
+ * 初始化逻辑现在通过 [Factory] companion object 注入 [AppSettings]，
+ * 避免了手动 init() 调用，使依赖关系更清晰且更易于测试。
+ *
  * @param appSettings 应用设置，提供服务器地址和认证令牌。
  */
 class BrowseViewModel(
@@ -43,7 +46,7 @@ class BrowseViewModel(
     /** 知识树中的概念列表 */
     val conceptList: StateFlow<List<String>> = _conceptList.asStateFlow()
 
-    // ── 当前选中文章状态 ────────────────────────────────────
+    // ── 当前选中文章状态 ──────────────────────────────────────
 
     private val _selectedConcept = MutableStateFlow<String?>(null)
     /** 当前选中的概念名称，null 表示未选中（列表视图） */
@@ -62,17 +65,6 @@ class BrowseViewModel(
     private val _error = MutableStateFlow<String?>(null)
     /** 最近一次加载操作的错误信息，null 表示无错误 */
     val error: StateFlow<String?> = _error.asStateFlow()
-
-    // ── 初始化 ────────────────────────────────────────────────
-
-    init {
-        // 在单个协程中依次完成：初始化 API → 加载数据
-        // 这样消除了原始代码中两个独立 LaunchedEffect 的竞态条件
-        viewModelScope.launch(Dispatchers.IO) {
-            initApi()
-            loadData()
-        }
-    }
 
     // ── 公共方法 ──────────────────────────────────────────────
 
@@ -163,36 +155,57 @@ class BrowseViewModel(
 
     /**
      * 从 AppSettings 读取 serverUrl 和 token，创建 SageWikiApi 实例。
+     * 初始化完成后自动触发数据加载。
      */
     private suspend fun initApi() {
         val serverUrl = appSettings.getServerUrl()
         val token = appSettings.getBearerToken()
         _api.value = SageWikiApi.create(serverUrl, token)
+        // 初始化完成后立即加载数据，确保单个协程流程消除竞态
+        loadData()
+    }
+
+    /**
+     * 触发 API 初始化并加载数据。
+     *
+     * 由外部（如 Composable 的 LaunchedEffect）显式调用，
+     * 取代原有的 init{} 块，使初始化时机可控。
+     */
+    fun initialize() {
+        viewModelScope.launch(Dispatchers.IO) {
+            initApi()
+        }
     }
 
     // ── ViewModelProvider.Factory ──────────────────────────────
 
-    /**
-     * Factory for creating [BrowseViewModel] instances with an [AppSettings]
-     * dependency. Used in Composable via:
-     * `viewModel(factory = BrowseViewModelFactory(appSettings))`
-     */
-    class Factory(
-        private val appSettings: AppSettings
-    ) : ViewModelProvider.Factory {
+    companion object {
         /**
-         * 创建指定类型的 ViewModel 实例。
+         * 创建 [BrowseViewModel] 实例的 [ViewModelProvider.Factory]。
          *
-         * @param modelClass 需要创建的 ViewModel 类型。
-         * @return 对应类型的 ViewModel 实例。
-         * @throws IllegalArgumentException 如果传入的类型不是 [BrowseViewModel]。
+         * 通过 [AppSettings] 依赖注入实现解耦，避免了在 ViewModel 内部
+         * 手动获取依赖或在 init{} 中直接调用初始化逻辑。
+         *
+         * 使用方式（在 Composable 中）：
+         * ```
+         * val viewModel: BrowseViewModel = viewModel(
+         *     factory = BrowseViewModel.Factory(appSettings)
+         * )
+         * ```
+         *
+         * 随后可在合适时机调用 [initialize] 来触发 API 初始化与数据加载。
+         *
+         * @param appSettings 应用设置，提供服务器地址和认证令牌。
          */
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(BrowseViewModel::class.java)) {
-                return BrowseViewModel(appSettings) as T
+        fun Factory(appSettings: AppSettings): ViewModelProvider.Factory =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(BrowseViewModel::class.java)) {
+                        return BrowseViewModel(appSettings) as T
+                    }
+                    throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+                }
             }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-        }
     }
 }

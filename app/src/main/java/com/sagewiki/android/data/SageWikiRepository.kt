@@ -1,6 +1,11 @@
 package com.sagewiki.android.data
 
 import com.sagewiki.android.network.*
+import com.sagewiki.android.network.TreeResponse
+import com.sagewiki.android.network.ProvenanceResponse
+import com.sagewiki.android.network.SysInfoResponse
+import com.sagewiki.android.network.ModelTestRequest
+import com.sagewiki.android.network.ModelTestResponse
 import okhttp3.MultipartBody
 
 /**
@@ -34,8 +39,8 @@ class SageWikiRepository private constructor(
     /** 获取服务器运行状态信息。 */
     suspend fun getStatus() = api.getStatus()
 
-    /** 获取系统详细信息（版本、运行环境等）。 */
-    suspend fun getSysInfo() = api.getSysInfo()
+    /** Get system info from /api/sysinfo */
+    suspend fun getSysInfo(): SysInfoResponse = api.getSysInfo()
 
     // ========== 配置 ==========
 
@@ -78,13 +83,14 @@ class SageWikiRepository private constructor(
     /** 获取可用模型列表，[fetch] 为 true 时强制从服务器重新拉取。 */
     suspend fun getModels(fetch: Boolean = false) = api.getModels(fetch)
 
-    /** 测试指定模型的连通性与可用性。 */
-    suspend fun testModel(body: ModelTestRequest) = api.testModel(body)
+    /** Test model connectivity via /api/models/test */
+    suspend fun testModel(model: String, prompt: String? = null): ModelTestResponse =
+        api.testModel(ModelTestRequest(model, prompt))
 
     // ========== 知识图谱 & 树 ==========
 
-    /** 获取知识树结构。 */
-    suspend fun getTree() = api.getTree()
+    /** Get directory tree from /api/tree */
+    suspend fun getTree(): TreeResponse = api.getTree()
 
     /** 获取知识图谱数据。 */
     suspend fun getGraph() = api.getGraph()
@@ -102,9 +108,8 @@ class SageWikiRepository private constructor(
 
     // ========== 来源追溯 ==========
 
-    /** 获取来源追溯信息，可按 [article] 或 [source] 过滤。 */
-    suspend fun getProvenance(article: String? = null, source: String? = null) =
-        api.getProvenance(article, source)
+    /** Get article provenance from /api/provenance */
+    suspend fun getProvenance(path: String): ProvenanceResponse = api.getProvenance(path)
 
     // ========== 分享 ==========
 

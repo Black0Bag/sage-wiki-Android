@@ -26,16 +26,12 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QAScreen(appSettings: AppSettings) {
-    val viewModel: QAViewModel = viewModel()
+    val viewModel: QAViewModel = viewModel(factory = QAViewModel.Factory(appSettings))
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
 
     // State for the source preview dialog: Pair<fileName, content>
     var previewContent by remember { mutableStateOf<Pair<String, String>?>(null) }
-
-    LaunchedEffect(Unit) {
-        viewModel.init(appSettings)
-    }
 
     // Auto-scroll to the latest message when new messages arrive or content updates
     LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.content) {

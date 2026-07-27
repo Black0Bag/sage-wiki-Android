@@ -12,15 +12,22 @@ import androidx.compose.material3.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.ui.about.AboutScreen
-import com.sagewiki.android.ui.dashboard.DashboardScreen
-import com.sagewiki.android.ui.library.LibraryScreen
-import com.sagewiki.android.ui.settings.SettingsScreen
-import com.sagewiki.android.ui.setup.SetupScreen
-import com.sagewiki.android.ui.search.SearchScreen
 import com.sagewiki.android.ui.browse.BrowseScreen
+import com.sagewiki.android.ui.browse.BrowseViewModel
+import com.sagewiki.android.ui.dashboard.DashboardScreen
+import com.sagewiki.android.ui.dashboard.DashboardViewModel
+import com.sagewiki.android.ui.library.LibraryScreen
+import com.sagewiki.android.ui.library.LibraryViewModel
 import com.sagewiki.android.ui.qa.QAScreen
+import com.sagewiki.android.ui.qa.QAViewModel
+import com.sagewiki.android.ui.search.SearchScreen
+import com.sagewiki.android.ui.search.SearchViewModel
+import com.sagewiki.android.ui.settings.SettingsScreen
+import com.sagewiki.android.ui.settings.SettingsViewModel
+import com.sagewiki.android.ui.setup.SetupScreen
 import com.sagewiki.android.ui.theme.SageWikiTheme
 
 /**
@@ -117,12 +124,46 @@ class MainActivity : ComponentActivity() {
 /**
  * 应用主界面 Composable，提供仪表板、文件库、搜索、浏览、问答、配置六屏导航，
  * 以及关于页的显示与返回键拦截逻辑。
+ *
+ * 所有 ViewModel 通过 Factory 模式统一获取，构造时即注入 [AppSettings] 并自动初始化，
+ * 无需在 LaunchedEffect 中手动调用 init()。
+ *
+ * 全局 [SnackbarHost] 统一管理错误提示，[SnackbarHostState] 可向各页面传递
+ * 以实现跨页面的错误反馈。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppMainScreen(appSettings: AppSettings) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showAbout by remember { mutableStateOf(false) }
+
+    // ── 全局 Snackbar ──────────────────────────────────────
+    // 全局 SnackbarHostState，可通过 SharedFlow 或直接调用 showSnackbar
+    // 来展示跨页面错误提示
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // ── ViewModel 统一获取（Factory 模式） ──────────────────
+    // 所有 ViewModel 通过各自的 Factory 创建，
+    // 构造时注入 [AppSettings] 并自动完成初始化，
+    // 无需在 LaunchedEffect 中手动调用 init(appSettings)。
+    val dashboardViewModel: DashboardViewModel = viewModel(
+        factory = DashboardViewModel.Factory(appSettings)
+    )
+    val libraryViewModel: LibraryViewModel = viewModel(
+        factory = LibraryViewModel.Factory(appSettings)
+    )
+    val searchViewModel: SearchViewModel = viewModel(
+        factory = SearchViewModel.Factory(appSettings)
+    )
+    val qaViewModel: QAViewModel = viewModel(
+        factory = QAViewModel.Factory(appSettings)
+    )
+    val browseViewModel: BrowseViewModel = viewModel(
+        factory = BrowseViewModel.Factory(appSettings)
+    )
+    val settingsViewModel: SettingsViewModel = viewModel(
+        factory = SettingsViewModelFactory(appSettings)
+    )
 
     // 返回键拦截：关于页 → 回主界面
     BackHandler(enabled = showAbout) {
@@ -149,6 +190,7 @@ fun AppMainScreen(appSettings: AppSettings) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {

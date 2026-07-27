@@ -21,15 +21,11 @@ import com.sagewiki.android.data.AppSettings
 
 @Composable
 fun SearchScreen(appSettings: AppSettings) {
-    val viewModel: SearchViewModel = viewModel()
+    val viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory(appSettings))
     val state by viewModel.uiState.collectAsState()
 
     // 预览状态: Pair<概念名, 路径>
     var previewPath by remember { mutableStateOf<Pair<String, String>?>(null) }
-
-    LaunchedEffect(Unit) {
-        viewModel.init(appSettings)
-    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // 搜索栏

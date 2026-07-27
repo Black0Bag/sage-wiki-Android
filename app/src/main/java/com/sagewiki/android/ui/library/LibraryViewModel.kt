@@ -2,6 +2,7 @@ package com.sagewiki.android.ui.library
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.GraphResponse
@@ -9,6 +10,7 @@ import com.sagewiki.android.network.ManifestResponse
 import com.sagewiki.android.network.SageWikiApi
 import com.sagewiki.android.network.SourceInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -74,13 +76,19 @@ data class LibraryUiState(
  * It loads source files, the compilation manifest, and the knowledge
  * graph from the server, and also handles file uploads and deletions.
  *
+ * @param appSettings application settings providing server URL and auth token.
+ *
  * Usage in a Composable:
  * ```kotlin
- * val viewModel: LibraryViewModel = viewModel()
+ * val viewModel: LibraryViewModel = viewModel(
+ *     factory = LibraryViewModel.Factory(appSettings)
+ * )
  * val state by viewModel.uiState.collectAsState()
  * ```
  */
-class LibraryViewModel : ViewModel() {
+class LibraryViewModel(
+    private val appSettings: AppSettings,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
@@ -96,12 +104,13 @@ class LibraryViewModel : ViewModel() {
         private set
 
     /**
-     * Initialise the API client from persisted [AppSettings] then
-     * kick off the first data load.
+     * Initialise the API client from injected [appSettings] then
+     * kick off the first data load. This replaces the old手动 init() call —
+     * the Factory pattern guarantees [appSettings] is available at
+     * construction time.
      */
-    fun init(appSettings: AppSettings) {
-        if (api != null) return
-        viewModelScope.launch {
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
             serverUrl = appSettings.getServerUrl()
             token = appSettings.getBearerToken()
             api = SageWikiApi.create(serverUrl, token)
@@ -220,7 +229,7 @@ class LibraryViewModel : ViewModel() {
 
     /**
      * Upload a file via a [okhttp3.MultipartBody.Part], trigger server-side
-     * compilation, then reload data.
+     * compilation, then poll for completion and reload data.
      *
      * @param part the multipart file part to upload
      */
@@ -240,8 +249,8 @@ class LibraryViewModel : ViewModel() {
                             uploadProgress = 1.0f,
                         )
                     }
-                    // 等待 2 秒后重载数据，给服务端编译一些处理时间
-                    kotlinx.coroutines.delay(2000)
+                    // 轮询 /api/status 等待编译完成
+                    pollCompileStatus(a)
                     loadData()
                     _uiState.update { it.copy(snackbarMessage = "上传并编译成功") }
                 } catch (e: Exception) {
@@ -282,9 +291,11 @@ class LibraryViewModel : ViewModel() {
      * Trigger server-side compilation manually.
      *
      * Sets [LibraryUiState.isCompiling] to `true`, calls the API
-     * [SageWikiApi.compile], then sets a status message, waits 2 seconds
-     * for the server to process, reloads data, and finally clears the
-     * compiling flag.
+     * [SageWikiApi.compile], then polls GET /api/status every 3 seconds
+     * (up to 30 seconds / 10 attempts) to detect when the server has
+     * finished processing. If the entries count increases or the vectors
+     * count changes, the compilation is considered successful; otherwise
+     * a timeout message is shown.
      */
     fun compile() {
         val a = api ?: return
@@ -302,8 +313,8 @@ class LibraryViewModel : ViewModel() {
                 _uiState.update {
                     it.copy(compileStatus = "编译已触发，正在后台处理...")
                 }
-                // 等待 2 秒后重载数据，给服务端编译一些处理时间
-                kotlinx.coroutines.delay(2000)
+                // 轮询 /api/status 等待编译完成
+                pollCompileStatus(a)
                 loadData()
                 _uiState.update { it.copy(isCompiling = false, snackbarMessage = "编译成功") }
             } catch (e: Exception) {
@@ -321,6 +332,59 @@ class LibraryViewModel : ViewModel() {
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Poll GET /api/status to detect compilation completion.
+     *
+     * Records the entries count before compilation, then polls every
+     * 3 seconds up to 10 times (30 seconds total). If entries increases
+     * or vectors changes, compilation is considered done. On timeout,
+     * a "编译可能仍在后台进行" message is set.
+     *
+     * @param a the [SageWikiApi] instance to use for polling.
+     */
+    private suspend fun pollCompileStatus(a: SageWikiApi) {
+        // 记录编译前的 entries 和 vectors 数
+        var beforeEntries: Int? = null
+        var beforeVectors: Int? = null
+        try {
+            val beforeStatus = a.getStatus()
+            beforeEntries = beforeStatus.entries
+            beforeVectors = beforeStatus.vectors
+        } catch (e: Exception) {
+            // 编译前状态获取失败不阻塞流程，只是无法做对比
+        }
+
+        val maxAttempts = 10
+        val pollIntervalMs = 3000L
+
+        for (attempt in 1..maxAttempts) {
+            delay(pollIntervalMs)
+            try {
+                val status = a.getStatus()
+                val entries = status.entries
+                val vectors = status.vectors
+
+                // entries 增加 or 向量数变化 → 编译成功
+                val entriesIncreased = beforeEntries != null && entries != null && entries > beforeEntries
+                val vectorsChanged = beforeVectors != null && vectors != null && vectors != beforeVectors
+
+                if (entriesIncreased || vectorsChanged) {
+                    _uiState.update {
+                        it.copy(compileStatus = "编译完成")
+                    }
+                    return
+                }
+            } catch (e: Exception) {
+                // 单次轮询失败不中断，继续重试
+            }
+        }
+
+        // 超时：entries 未增加、向量数未变化
+        _uiState.update {
+            it.copy(compileStatus = "编译可能仍在后台进行")
         }
     }
 
@@ -530,5 +594,34 @@ class LibraryViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         api = null
+    }
+
+    // ── ViewModelProvider.Factory ──────────────────────────────
+
+    /**
+     * Factory for creating [LibraryViewModel] instances with an
+     * [AppSettings] dependency.
+     *
+     * Usage in a Composable:
+     * `viewModel(factory = LibraryViewModel.Factory(appSettings))`
+     */
+    class Factory(
+        private val appSettings: AppSettings,
+    ) : ViewModelProvider.Factory {
+        /**
+         * Create a [LibraryViewModel] instance.
+         *
+         * @param modelClass the ViewModel class to create.
+         * @return a [LibraryViewModel] instance.
+         * @throws IllegalArgumentException if the requested class is not
+         *         [LibraryViewModel].
+         */
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(LibraryViewModel::class.java)) {
+                return LibraryViewModel(appSettings) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        }
     }
 }

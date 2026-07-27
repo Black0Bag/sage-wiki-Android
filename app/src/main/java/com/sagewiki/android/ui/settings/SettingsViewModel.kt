@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.data.ServerConfig
@@ -32,6 +33,12 @@ import kotlinx.coroutines.launch
  *  3. saveConfig() now passes `embeddingProvider` and `embeddingDims` to
  *     ConfigUpdateRequest.
  *     (original omitted both, so these fields silently never persisted)
+ *
+ *  4. saveConfig() now uses the flat key format expected by the backend PUT
+ *     endpoint (via ConfigUpdateRequest's @SerializedName annotations) rather
+ *     than the nested key structure returned by GET.
+ *     API keys that contain asterisks (masked values like "****") are skipped
+ *     so that sensitive credentials are never sent back to the server.
  */
 class SettingsViewModel(
     private val appSettings: AppSettings
@@ -208,9 +215,20 @@ class SettingsViewModel(
     // ═════════════════════════════════════════════════════════════════════
     //  saveConfig — persist config to server
     //
+    //  Uses the flat key format expected by the backend PUT endpoint
+    //  (via ConfigUpdateRequest's @SerializedName annotations):
+    //    llm_model, extract_model, write_model, query_model,
+    //    api_base, api_provider, api_key,
+    //    embedding_model, embedding_provider, embedding_base_url, embedding_api_key,
+    //    embed_batch_size, system_prompt, chunk_size, max_tokens
+    //
     //  [BUGFIX #3] Add `embeddingProvider` and `embeddingDims` to the
     //  ConfigUpdateRequest. The original code omitted these entirely,
     //  so they were never persisted server-side.
+    //
+    //  [BUGFIX #4] API Key desensitization: if the apiKey value is "****"
+    //  or contains asterisks (masked by the server), it is NOT sent in
+    //  the PUT request body to avoid leaking the masked placeholder.
     // ═════════════════════════════════════════════════════════════════════
 
     /** Persists the current model and API configuration to the server. */
@@ -219,22 +237,37 @@ class SettingsViewModel(
         viewModelScope.launch {
             saving = true
             try {
+                // ── API Key desensitization ──────────────────────────────
+                // Skip sending api_key if it is masked ("****" or contains asterisks).
+                val safeApiKey: String? = apiKey
+                    .takeIf { it.isNotBlank() && !it.contains("*") }
+
+                // Same desensitization for embedding API key — if it contains
+                // asterisks, do not send it back.
+                val safeEmbeddingApiKey: String? = embeddingApiKey
+                    .takeIf { it.isNotBlank() && !it.contains("*") }
+                    ?: safeApiKey  // fall back to main api_key only if it's safe
+
                 a.updateConfig(
                     ConfigUpdateRequest(
-                        // LLM models
+                        // ── LLM models (flat keys via @SerializedName) ──
                         llmModel = llmModel.ifBlank { null },
                         extractModel = extractModel.ifBlank { null },
                         writeModel = writeModel.ifBlank { null },
                         lintModel = lintModel.ifBlank { null },
                         queryModel = queryModel.ifBlank { null },
 
-                        // API credentials
-                        apiKey = apiKey.ifBlank { null },
+                        // ── API credentials (flat keys: api_key, api_base) ──
+                        // [BUGFIX #4] Skip api_key if masked
+                        apiKey = safeApiKey,
                         apiBase = apiBaseUrl.ifBlank { null },
 
-                        // Embedding model + credentials
+                        // ── Embedding model + credentials ──
+                        // (flat keys: embedding_model, embedding_api_key,
+                        //  embedding_base_url, embedding_provider, embedding_dims)
                         embeddingModel = embeddingModel.ifBlank { null },
-                        embeddingApiKey = embeddingApiKey.ifBlank { apiKey.ifBlank { null } },
+                        // [BUGFIX #4] Skip embedding_api_key if masked
+                        embeddingApiKey = safeEmbeddingApiKey,
                         embeddingBaseUrl = embeddingBaseUrl.ifBlank { null },
 
                         // [BUGFIX #3] These two were missing in the original:
@@ -429,5 +462,36 @@ class SettingsViewModel(
 
     override fun onCleared() {
         super.onCleared()
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  Companion object: ViewModelProvider.Factory
+    // ═════════════════════════════════════════════════════════════════════
+
+    companion object {
+        /**
+         * Factory for creating [SettingsViewModel] instances with the required [AppSettings] dependency.
+         *
+         * Usage:
+         * ```
+         * val factory = SettingsViewModel.Factory(appSettings)
+         * val viewModel: SettingsViewModel = ViewModelProvider(this, factory).get(SettingsViewModel::class.java)
+         * ```
+         * Or with Compose:
+         * ```
+         * val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(appSettings))
+         * ```
+         */
+        class Factory(
+            private val appSettings: AppSettings
+        ) : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
+                    return SettingsViewModel(appSettings) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            }
+        }
     }
 }

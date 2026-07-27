@@ -1,11 +1,13 @@
 package com.sagewiki.android.ui.search
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.ArticleResponse
 import com.sagewiki.android.network.SageWikiApi
 import com.sagewiki.android.network.SearchResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,13 +48,24 @@ data class SearchUiState(
  * ViewModel that manages the search bar state and delegates the
  * `api/search` network call to [SageWikiApi].
  *
+ * The [appSettings] dependency is injected via the constructor, and the
+ * [SageWikiApi] instance is created in the `init` block using the
+ * persisted server URL and bearer token. This eliminates the need for
+ * a manual `init(appSettings)` call from the Composable.
+ *
  * Usage in a Composable:
- * ```
- * val viewModel: SearchViewModel = viewModel()
+ * ```kotlin
+ * val viewModel: SearchViewModel = viewModel(
+ *     factory = SearchViewModel.Factory(appSettings)
+ * )
  * val state by viewModel.uiState.collectAsState()
  * ```
+ *
+ * @param appSettings 持久化的应用设置，提供服务器地址与令牌。
  */
-class SearchViewModel : ViewModel() {
+class SearchViewModel(
+    private val appSettings: AppSettings
+) : ViewModel() {
 
     /** 内部可变的 UI 状态流。 */
     private val _uiState = MutableStateFlow(SearchUiState())
@@ -61,20 +74,24 @@ class SearchViewModel : ViewModel() {
 
     private var api: SageWikiApi? = null
 
+    // ── 初始化 ────────────────────────────────────────────────
+
     /**
-     * Initialise the API client from persisted [AppSettings].
-     * Call from a `LaunchedEffect` on first composition.
+     * 在 ViewModel 创建时即从 [AppSettings] 读取服务器地址与令牌，
+     * 构建 [SageWikiApi] 实例。
      *
-     * @param appSettings 持久化的应用设置，提供服务器地址与令牌。
+     * 由于 [getServerUrl] 和 [getBearerToken] 都是挂起函数，
+     * 在 IO 调度器上执行以避免阻塞主线程。
      */
-    fun init(appSettings: AppSettings) {
-        if (api != null) return
-        viewModelScope.launch {
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
             val serverUrl = appSettings.getServerUrl()
             val token = appSettings.getBearerToken()
             api = SageWikiApi.create(serverUrl, token)
         }
     }
+
+    // ── 搜索功能 ──────────────────────────────────────────────
 
     /**
      * Update the search query text.
@@ -151,6 +168,8 @@ class SearchViewModel : ViewModel() {
         _uiState.update { it.copy(error = null) }
     }
 
+    // ── 文章预览 ──────────────────────────────────────────────
+
     /**
      * Load an article for preview in the search results dialog.
      * Calls `api.getArticle(path)` and exposes `body` via [SearchUiState.previewContent].
@@ -208,11 +227,43 @@ class SearchViewModel : ViewModel() {
         }
     }
 
+    // ── 生命周期 ──────────────────────────────────────────────
+
     /**
      * ViewModel 被销毁时调用，释放 API 客户端引用。
      */
     override fun onCleared() {
         super.onCleared()
         api = null
+    }
+
+    // ── ViewModelProvider.Factory ──────────────────────────────
+
+    companion object {
+        /**
+         * Factory for creating [SearchViewModel] instances with an [AppSettings]
+         * dependency. Used in Composable via:
+         * `viewModel(factory = SearchViewModel.Factory(appSettings))`
+         *
+         * @param appSettings 应用设置，提供服务器地址和认证令牌。
+         */
+        @Suppress("UNCHECKED_CAST")
+        class Factory(
+            private val appSettings: AppSettings
+        ) : ViewModelProvider.Factory {
+            /**
+             * 创建指定类型的 ViewModel 实例。
+             *
+             * @param modelClass 需要创建的 ViewModel 类型。
+             * @return 对应类型的 ViewModel 实例。
+             * @throws IllegalArgumentException 如果传入的类型不是 [SearchViewModel]。
+             */
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(SearchViewModel::class.java)) {
+                    return SearchViewModel(appSettings) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            }
+        }
     }
 }

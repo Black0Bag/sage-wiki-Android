@@ -343,15 +343,31 @@ data class QueryResponse(
 
 // ============ 来源追溯 API ============
 
-/** 文章来源追溯响应。 */
+/** 文章来源追溯响应（GET /api/provenance?path=...）。 */
 data class ProvenanceResponse(
-    val article: String? = null,
-    val sources: List<ProvenanceSource>? = null
+    val path: String,
+    val sources: List<String>,
+    val compiled_at: String?
 )
 
-/** 单个来源追溯条目。 */
-data class ProvenanceSource(
-    val path: String? = null,
-    val type: String? = null,
-    val relevance: String? = null
+// ============================ v3.0.0 新增模型 ============================
+
+/** Directory tree node from GET /api/tree */
+data class TreeNode(
+    val name: String,
+    val path: String,
+    val isDir: Boolean,
+    val children: List<TreeNode>?
+)
+
+/** Tree response from GET /api/tree */
+data class TreeResponse(
+    val tree: List<TreeNode>
+)
+
+/** Compile status response */
+data class CompileStatusResponse(
+    val status: String,
+    val last_compile: String?,
+    val error: String?
 )

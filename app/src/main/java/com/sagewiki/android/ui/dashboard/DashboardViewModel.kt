@@ -23,17 +23,21 @@ import kotlinx.coroutines.launch
  * 将 DashboardScreen 中散落在 Composable 内的状态管理与网络调用逻辑提取至此，
  * 使 UI 层仅负责渲染和用户交互，数据获取由 ViewModel 统一管理。
  *
+ * 通过 [Factory] 注入 [AppSettings]，避免在内部手动调用 `init()`，
+ * 确保依赖可在测试时替换。
+ *
  * 状态字段：
- *  - [status]      知识库状态（条目、向量、维度等）
- *  - [sysInfo]     宿主机系统信息（CPU、内存、磁盘、负载等）
+ *  - [status]       知识库状态（条目、向量、维度等）
+ *  - [sysInfo]      宿主机系统信息（CPU、内存、磁盘、负载等）
  *  - [sourcesTotal] 源文件总数
- *  - [healthOk]    服务器健康检查结果
- *  - [isLoading]   数据加载中标志
- *  - [error]       错误信息（null 表示无错误）
- *  - [serverUrl]   当前连接的服务器地址（用于 UI 显示）
+ *  - [healthOk]     服务器健康检查结果
+ *  - [isLoading]    首次数据加载中标志
+ *  - [isRefreshing] 后续刷新中标志
+ *  - [error]        错误信息（null 表示无错误）
+ *  - [serverUrl]    当前连接的服务器地址（用于 UI 显示）
  *
  * 核心方法：
- *  - [refresh]      手动触发一次数据刷新
+ *  - [refresh]          手动触发一次数据刷新
  *  - [startAutoRefresh] 启动 15 秒间隔的自动刷新循环
  */
 class DashboardViewModel(
@@ -89,7 +93,7 @@ class DashboardViewModel(
      * 流程：
      *  1. 从 [AppSettings] 读取服务器地址和 Bearer Token
      *  2. 通过 [SageWikiRepository.create] 构建 API 实例
-     *  3. 依次请求 health → status → sources → sysInfo
+     *  3. 并行请求 health → status → sources → sysInfo
      *  4. 更新对应 StateFlow，捕获异常写入 [error]
      */
     fun refresh() {
@@ -160,28 +164,33 @@ class DashboardViewModel(
 
     // ==================== ViewModelProvider.Factory ====================
 
-    /**
-     * 用于创建 [DashboardViewModel] 实例的工厂。
-     *
-     * 在 Composable 中通过 `viewModel(factory = DashboardViewModel.Factory(appSettings))`
-     * 或在 Activity/Fragment 中注册使用。
-     */
-    class Factory(
-        private val appSettings: AppSettings
-    ) : ViewModelProvider.Factory {
+    companion object {
+
         /**
-         * 创建指定类型的 ViewModel 实例。
+         * 用于创建 [DashboardViewModel] 实例的工厂。
          *
-         * @param modelClass 需要创建的 ViewModel 类型。
-         * @return 与 [modelClass] 匹配的 ViewModel 实例。
-         * @throws IllegalArgumentException 当请求的 ViewModel 类型不被支持时抛出。
+         * 在 Composable 中通过 `viewModel(factory = DashboardViewModel.Factory(appSettings))`
+         * 或在 Activity/Fragment 中注册使用。
+         *
+         * 使用 companion object 形式，使调用方无需先持有 ViewModel 实例即可获取 Factory，
+         * 同时保持与 ViewModelProvider 的标准集成方式一致。
          */
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(DashboardViewModel::class.java)) {
-                return DashboardViewModel(appSettings) as T
+        fun Factory(appSettings: AppSettings): ViewModelProvider.Factory =
+            object : ViewModelProvider.Factory {
+                /**
+                 * 创建指定类型的 ViewModel 实例。
+                 *
+                 * @param modelClass 需要创建的 ViewModel 类型。
+                 * @return 与 [modelClass] 匹配的 ViewModel 实例。
+                 * @throws IllegalArgumentException 当请求的 ViewModel 类型不被支持时抛出。
+                 */
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(DashboardViewModel::class.java)) {
+                        return DashboardViewModel(appSettings) as T
+                    }
+                    throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+                }
             }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-        }
     }
 }

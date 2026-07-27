@@ -1,7 +1,10 @@
 package com.sagewiki.android.ui.qa
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.QueryRequest
 import com.sagewiki.android.network.SageWikiApi
@@ -59,31 +62,35 @@ data class QaMessage(
  *
  * Usage in a Composable:
  * ```kotlin
- * val viewModel: QAViewModel = viewModel()
+ * val viewModel: QAViewModel = viewModel(
+ *     factory = QAViewModel.Factory(appSettings)
+ * )
  * val state by viewModel.uiState.collectAsState()
  * ```
  */
-class QAViewModel : ViewModel() {
+class QAViewModel(
+    private val appSettings: AppSettings
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QaUiState())
     /** Exposes the current QA UI state as a observable [StateFlow] for Composables to collect. */
     val uiState: StateFlow<QaUiState> = _uiState.asStateFlow()
 
-    private var api: SageWikiApi? = null
+    private lateinit var api: SageWikiApi
+    /** True once the API client has been initialized from persisted settings. */
+    @Volatile
+    private var isApiInitialized: Boolean = false
 
     private val gson = Gson()
 
-    /**
-     * Initialise the API client from persisted [AppSettings].
-     * Call from a `LaunchedEffect` on first composition.
-     */
-    fun init(appSettings: AppSettings) {
-        if (api != null) return
+    init {
+        // DataStore 读取涉及磁盘 IO，必须在 IO 调度器上执行
+        // 构造时自动执行，无需外部手动调用 init()
         viewModelScope.launch {
-            // DataStore 读取涉及磁盘 IO，必须在 IO 调度器上执行
             val serverUrl = withContext(Dispatchers.IO) { appSettings.getServerUrl() }
             val token = withContext(Dispatchers.IO) { appSettings.getBearerToken() }
             api = SageWikiApi.create(serverUrl, token)
+            isApiInitialized = true
         }
     }
 
@@ -101,7 +108,9 @@ class QAViewModel : ViewModel() {
      */
     fun sendQuestion(question: String) {
         if (question.isBlank()) return
-        val a = api ?: return
+        if (!isApiInitialized) return
+
+        val a = api
 
         // Create the user message
         val userMsg = QaMessage(role = "user", content = question)
@@ -243,7 +252,7 @@ class QAViewModel : ViewModel() {
                         )
                     }
                 }
-            } catch (e: java.net.SocketTimeoutException) {
+            } catch (e: SocketTimeoutException) {
                 val errorMsg = "请求超时，请稍后重试"
                 _uiState.update { state ->
                     state.copy(
@@ -261,7 +270,7 @@ class QAViewModel : ViewModel() {
                         error = errorMsg
                     )
                 }
-            } catch (e: java.io.IOException) {
+            } catch (e: IOException) {
                 val errorMsg = "网络连接失败，请检查服务器地址"
                 _uiState.update { state ->
                     state.copy(
@@ -345,11 +354,11 @@ class QAViewModel : ViewModel() {
      * Returns an error message string if the fetch fails.
      */
     fun previewSource(sourcePath: String, onResult: (String) -> Unit) {
-        val a = api
-        if (a == null) {
+        if (!isApiInitialized) {
             onResult("API 尚未初始化")
             return
         }
+        val a = api
         viewModelScope.launch {
             try {
                 // Extract the file name from the full path (e.g. "dir/subdir/file.md" → "file.md")
@@ -373,9 +382,19 @@ class QAViewModel : ViewModel() {
         _uiState.update { it.copy(error = null) }
     }
 
-    /** Called when the ViewModel is no longer used; releases the API client reference. */
-    override fun onCleared() {
-        super.onCleared()
-        api = null
+    companion object {
+        /**
+         * Creates a [ViewModelProvider.Factory] that injects [AppSettings]
+         * into the [QAViewModel] constructor.
+         *
+         * Usage:
+         * ```kotlin
+         * val viewModel: QAViewModel = viewModel(
+         *     factory = QAViewModel.Factory(appSettings)
+         * )
+         * ```
+         */
+        fun Factory(appSettings: AppSettings): ViewModelProvider.Factory =
+            viewModelFactory { initializer { QAViewModel(appSettings) } }
     }
 }
