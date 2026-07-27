@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.HttpException
 
 /** 分享处理状态。 */
 sealed class SharePhase {
@@ -68,6 +69,11 @@ class ShareViewModel(
         val token = appSettings.bearerToken.first()
         if (url.isBlank()) {
             _phase.value = SharePhase.Error("服务器未配置，请先在配置页设置服务器地址")
+            return null
+        }
+        // 安全检查：如果 URL 包含 opencode.ai 或以 /v1 结尾，说明配置的是 LLM API 而非后端
+        if (url.contains("opencode.ai") || url.endsWith("/v1")) {
+            _phase.value = SharePhase.Error("服务器地址错误：检测到 LLM API 地址，而非 sage-wiki 后端。\n请到配置页设置后端地址（如 http://192.168.1.2:8082）。\n当前地址: $url")
             return null
         }
         repository = SageWikiRepository.create(url, token)
@@ -182,8 +188,15 @@ class ShareViewModel(
                         }
                     }
                 }
+            } catch (e: retrofit2.HttpException) {
+                val code = e.code()
+                val msg = e.message()
+                val raw = e.response()?.errorBody()?.string()?.take(200) ?: ""
+                _phase.value = SharePhase.Error("HTTP $code: $msg\n服务器: ${repository?.serverUrl ?: "未知"}\n响应: $raw")
+                _progress.value = 0f
+                _statusMessage.value = ""
             } catch (e: Exception) {
-                _phase.value = SharePhase.Error("操作失败: ${e.message}")
+                _phase.value = SharePhase.Error("操作失败: ${e.message}\n类型: ${e.javaClass.simpleName}")
                 _progress.value = 0f
                 _statusMessage.value = ""
             }
