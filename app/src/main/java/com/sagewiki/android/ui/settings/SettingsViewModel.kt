@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.data.ServerConfig
 import com.sagewiki.android.network.ConfigResponse
@@ -469,29 +471,7 @@ class SettingsViewModel(
     // ═════════════════════════════════════════════════════════════════════
 
     companion object {
-        /**
-         * Factory for creating [SettingsViewModel] instances with the required [AppSettings] dependency.
-         *
-         * Usage:
-         * ```
-         * val factory = SettingsViewModel.Factory(appSettings)
-         * val viewModel: SettingsViewModel = ViewModelProvider(this, factory).get(SettingsViewModel::class.java)
-         * ```
-         * Or with Compose:
-         * ```
-         * val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(appSettings))
-         * ```
-         */
-        class Factory(
-            private val appSettings: AppSettings
-        ) : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
-                    return SettingsViewModel(appSettings) as T
-                }
-                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-            }
-        }
+        fun Factory(appSettings: AppSettings): ViewModelProvider.Factory =
+            viewModelFactory { initializer { SettingsViewModel(appSettings) } }
     }
 }

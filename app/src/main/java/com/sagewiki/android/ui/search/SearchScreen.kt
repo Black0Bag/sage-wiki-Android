@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagewiki.android.data.AppSettings
+import com.sagewiki.android.ui.search.SearchViewModel
 
 @Composable
 fun SearchScreen(appSettings: AppSettings) {

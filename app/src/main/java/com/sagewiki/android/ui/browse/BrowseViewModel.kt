@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.SageWikiApi
+import com.sagewiki.android.network.TreeNode
 import kotlinx.coroutines.Dispatchers
 import java.io.IOException
 import com.google.gson.JsonParseException
@@ -83,22 +84,21 @@ class BrowseViewModel(
             _isLoading.value = true
             _error.value = null
             try {
-                val tree = currentApi.getTree()
+                val treeResponse = currentApi.getTree()
                 val concepts = mutableListOf<String>()
 
-                val conceptsMap = tree["concepts"]
-                if (conceptsMap is Map<*, *>) {
-                    conceptsMap.keys.forEach { key ->
-                        concepts.add(key.toString())
+                // 递归遍历 TreeNode 列表，收集所有非目录节点（即概念/文章）的名称
+                fun collectConcepts(nodes: List<TreeNode>?) {
+                    if (nodes == null) return
+                    for (node in nodes) {
+                        if (node.isDir) {
+                            collectConcepts(node.children)
+                        } else {
+                            concepts.add(node.name)
+                        }
                     }
                 }
-
-                // 如果 "concepts" 键不存在或为空，退回到使用顶层 key
-                if (concepts.isEmpty()) {
-                    tree.keys.forEach { key ->
-                        concepts.add(key)
-                    }
-                }
+                collectConcepts(treeResponse.tree)
 
                 _conceptList.value = concepts
             } catch (e: IOException) {

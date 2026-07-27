@@ -147,22 +147,22 @@ fun AppMainScreen(appSettings: AppSettings) {
     // 构造时注入 [AppSettings] 并自动完成初始化，
     // 无需在 LaunchedEffect 中手动调用 init(appSettings)。
     val dashboardViewModel: DashboardViewModel = viewModel(
-        factory = DashboardViewModel.Factory(appSettings)
+        factory = DashboardViewModel.Companion.Factory(appSettings)
     )
     val libraryViewModel: LibraryViewModel = viewModel(
-        factory = LibraryViewModel.Factory(appSettings)
+        factory = LibraryViewModel.Companion.Factory(appSettings)
     )
     val searchViewModel: SearchViewModel = viewModel(
-        factory = SearchViewModel.Factory(appSettings)
+        factory = SearchViewModel.Companion.Factory(appSettings)
     )
     val qaViewModel: QAViewModel = viewModel(
-        factory = QAViewModel.Factory(appSettings)
+        factory = QAViewModel.Companion.Factory(appSettings)
     )
     val browseViewModel: BrowseViewModel = viewModel(
-        factory = BrowseViewModel.Factory(appSettings)
+        factory = BrowseViewModel.Companion.Factory(appSettings)
     )
     val settingsViewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModelFactory(appSettings)
+        factory = SettingsViewModel.Companion.Factory(appSettings)
     )
 
     // 返回键拦截：关于页 → 回主界面
