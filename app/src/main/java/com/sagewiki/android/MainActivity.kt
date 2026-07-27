@@ -7,7 +7,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.QuestionAnswer
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
@@ -147,22 +154,22 @@ fun AppMainScreen(appSettings: AppSettings) {
     // 构造时注入 [AppSettings] 并自动完成初始化，
     // 无需在 LaunchedEffect 中手动调用 init(appSettings)。
     val dashboardViewModel: DashboardViewModel = viewModel(
-        factory = DashboardViewModel.Companion.Factory(appSettings)
+        factory = DashboardViewModel.Factory(appSettings)
     )
     val libraryViewModel: LibraryViewModel = viewModel(
-        factory = LibraryViewModel.Companion.Factory(appSettings)
+        factory = LibraryViewModel.Factory(appSettings)
     )
     val searchViewModel: SearchViewModel = viewModel(
-        factory = SearchViewModel.Companion.Factory(appSettings)
+        factory = SearchViewModel.Factory(appSettings)
     )
     val qaViewModel: QAViewModel = viewModel(
-        factory = QAViewModel.Companion.Factory(appSettings)
+        factory = QAViewModel.Factory(appSettings)
     )
     val browseViewModel: BrowseViewModel = viewModel(
-        factory = BrowseViewModel.Companion.Factory(appSettings)
+        factory = BrowseViewModel.Factory(appSettings)
     )
     val settingsViewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModel.Companion.Factory(appSettings)
+        factory = SettingsViewModel.Factory(appSettings)
     )
 
     // 返回键拦截：关于页 → 回主界面
