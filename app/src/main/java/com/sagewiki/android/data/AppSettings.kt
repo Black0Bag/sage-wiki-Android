@@ -17,6 +17,9 @@ private val Context.dataStore by preferencesDataStore(name = "sage_wiki_settings
  */
 class AppSettings(private val context: Context) {
 
+    /** 提供对内部 context 的只读访问（仅供 ViewModel Factory 使用）。 */
+    val appContext: Context get() = context
+
     companion object {
         private val KEY_SERVER_URL = stringPreferencesKey("server_url")
         private val KEY_BEARER_TOKEN = stringPreferencesKey("bearer_token")
