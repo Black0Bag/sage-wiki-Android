@@ -19,6 +19,7 @@ import com.sagewiki.android.network.GraphNode
 import com.sagewiki.android.network.ManifestResponse
 import com.sagewiki.android.network.SourceInfo
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 import androidx.compose.animation.core.*
 import androidx.compose.animation.AnimatedVisibility
@@ -68,6 +69,13 @@ fun formatFileSize(bytes: Long): String {
  * Delegates to [formatFileSize].
  */
 fun formatBytes(bytes: Long): String = formatFileSize(bytes)
+
+/**
+ * Linear interpolation between two [Float] values.
+ * Replaces the internal [androidx.compose.animation.core.lerp] which is not accessible.
+ */
+private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float =
+    start + (stop - start) * fraction
 
 // ═══════════════════════════════════════════════════════════
 //  Source tab components
@@ -734,15 +742,15 @@ fun SuccessCheckAnimation(modifier: Modifier = Modifier) {
     val scale = when {
         animProgress.value < 0.4f -> {
             // 0 → 1 in first 40% (240 ms)
-            lerp(0f, 1f, animProgress.value / 0.4f)
+            lerpFloat(0f, 1f, animProgress.value / 0.4f)
         }
         animProgress.value < 0.7f -> {
             // 1 → 1.2 in next 30% (180 ms)
-            lerp(1f, 1.2f, (animProgress.value - 0.4f) / 0.3f)
+            lerpFloat(1f, 1.2f, (animProgress.value - 0.4f) / 0.3f)
         }
         else -> {
             // 1.2 → 1 in last 30% (180 ms)
-            lerp(1.2f, 1f, (animProgress.value - 0.7f) / 0.3f)
+            lerpFloat(1.2f, 1f, (animProgress.value - 0.7f) / 0.3f)
         }
     }
 
@@ -759,72 +767,56 @@ fun SuccessCheckAnimation(modifier: Modifier = Modifier) {
         val center = Offset(canvasSize / 2f, canvasSize / 2f)
         val radius = canvasSize / 2f * 0.9f
 
-        drawIntoCanvas { canvas ->
-            // ── Background circle (fades in + scales) ──────────────
-            if (circleProgress > 0f) {
-                val circleRadius = radius * circleProgress
-                val circleAlpha = circleProgress
-                canvas.nativeCanvas.drawCircle(
-                    center.x,
-                    center.y,
-                    circleRadius,
-                    android.graphics.Paint().apply {
-                        color = android.graphics.Color.argb(
-                            (circleAlpha * 255).toInt(), 0x4C, 0xAF, 0x50,
-                        )
-                        isAntiAlias = true
-                    },
-                )
-            }
-
-            // ── Check-mark path ───────────────────────────────────
-            if (checkProgress > 0f) {
-                // Check points relative to center (within 48 dp):
-                //  left point (short arm)     right point (long arm)
-                //  p1 = (0.30, 0.50)          p2 = (0.42, 0.62)
-                //                  mid = (0.50, 0.40)
-                val mid = Offset(center.x, center.y - radius * 0.08f)
-                val p1 = Offset(center.x - radius * 0.24f, center.y + radius * 0.04f)
-                val p2 = Offset(center.x + radius * 0.28f, center.y - radius * 0.20f)
-
-                val checkPath = Path().apply {
-                    moveTo(mid.x, mid.y)
-                    lineTo(p1.x, p1.y)
-                    lineTo(p2.x, p2.y)
-                }
-
-                val pathMeasure = androidx.compose.ui.graphics.PathMeasure()
-                pathMeasure.setPath(checkPath, false)
-                val totalLength = pathMeasure.length
-
-                // Draw progressively using PathEffect (dash with only first portion visible).
-                val visibleLength = totalLength * checkProgress
-                val effect = PathEffect.dashPathEffect(
-                    intervals = floatArrayOf(visibleLength, totalLength),
-                    phase = 0f,
-                )
-
-                drawIntoCanvas {
-                    it.nativeCanvas.drawPath(
-                        checkPath.asAndroidPath(),
-                        android.graphics.Paint().apply {
-                            color = android.graphics.Color.WHITE
-                            style = android.graphics.Paint.Style.STROKE
-                            strokeWidth = with(this@Canvas) { 3.dp.toPx() }
-                            isAntiAlias = true
-                            strokeCap = android.graphics.Paint.Cap.ROUND
-                            this.pathEffect = android.graphics.DashPathEffect(
-                                floatArrayOf(visibleLength, totalLength),
-                                0f,
-                            )
-                        },
-                    )
-                }
-            }
-
-            // ── Overall scale transformation ──────────────────────
-            // Scale is applied via saving/restoring canvas state.
+        // ── Background circle (fades in + scales) ──────────────
+        if (circleProgress > 0f) {
+            val circleRadius = radius * circleProgress
+            val circleAlpha = circleProgress
+            drawCircle(
+                color = Color(0xFF4CAF50).copy(alpha = circleAlpha),
+                radius = circleRadius,
+                center = center,
+            )
         }
+
+        // ── Check-mark path ───────────────────────────────────
+        if (checkProgress > 0f) {
+            // Check points relative to center (within 48 dp):
+            //  left point (short arm)     right point (long arm)
+            //  p1 = (0.30, 0.50)          p2 = (0.42, 0.62)
+            //                  mid = (0.50, 0.40)
+            val mid = Offset(center.x, center.y - radius * 0.08f)
+            val p1 = Offset(center.x - radius * 0.24f, center.y + radius * 0.04f)
+            val p2 = Offset(center.x + radius * 0.28f, center.y - radius * 0.20f)
+
+            val checkPath = Path().apply {
+                moveTo(mid.x, mid.y)
+                lineTo(p1.x, p1.y)
+                lineTo(p2.x, p2.y)
+            }
+
+            val pathMeasure = androidx.compose.ui.graphics.PathMeasure()
+            pathMeasure.setPath(checkPath, false)
+            val totalLength = pathMeasure.length
+
+            // Draw progressively using PathEffect (dash with only first portion visible).
+            val visibleLength = totalLength * checkProgress
+            val effect = PathEffect.dashPathEffect(
+                intervals = floatArrayOf(visibleLength, totalLength),
+                phase = 0f,
+            )
+
+            drawPath(
+                path = checkPath,
+                color = Color.White,
+                style = Stroke(
+                    width = 3.dp.toPx(),
+                    cap = StrokeCap.Round,
+                ),
+            )
+        }
+
+        // ── Overall scale transformation ──────────────────────
+        // Scale is applied via graphicsLayer modifier on the second Canvas below.
 
         // Re-draw everything with the scale applied via a wrapper approach:
         // Since Canvas doesn't support transform on individual draws easily,
@@ -881,7 +873,6 @@ fun SuccessCheckAnimation(modifier: Modifier = Modifier) {
                         width = 3.dp.toPx(),
                         cap = StrokeCap.Round,
                     ),
-                    pathEffect = effect,
                 )
             } else {
                 drawPath(
@@ -933,7 +924,7 @@ fun FailureCrossAnimation(modifier: Modifier = Modifier) {
 
     // Quick scale-in: 0 → 1 over 0–200 ms, then stays at 1.
     val scale = if (animProgress.value < 0.444f) {
-        lerp(0f, 1f, animProgress.value / 0.444f)
+        lerpFloat(0f, 1f, animProgress.value / 0.444f)
     } else {
         1f
     }
@@ -981,8 +972,8 @@ fun FailureCrossAnimation(modifier: Modifier = Modifier) {
         // Line 1: top-left → bottom-right.
         if (line1Progress > 0f) {
             val linePath = Path().apply {
-                val endX = lerp(p1.x, p2.x, line1Progress)
-                val endY = lerp(p1.y, p2.y, line1Progress)
+                val endX = lerpFloat(p1.x, p2.x, line1Progress)
+                val endY = lerpFloat(p1.y, p2.y, line1Progress)
                 moveTo(p1.x, p1.y)
                 lineTo(endX, endY)
             }
@@ -999,8 +990,8 @@ fun FailureCrossAnimation(modifier: Modifier = Modifier) {
         // Line 2: top-right → bottom-left.
         if (line2Progress > 0f) {
             val linePath = Path().apply {
-                val endX = lerp(p3.x, p4.x, line2Progress)
-                val endY = lerp(p3.y, p4.y, line2Progress)
+                val endX = lerpFloat(p3.x, p4.x, line2Progress)
+                val endY = lerpFloat(p3.y, p4.y, line2Progress)
                 moveTo(p3.x, p3.y)
                 lineTo(endX, endY)
             }

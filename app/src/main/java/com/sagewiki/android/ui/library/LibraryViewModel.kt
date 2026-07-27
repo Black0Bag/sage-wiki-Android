@@ -274,7 +274,7 @@ class LibraryViewModel(
     fun uploadSource(part: okhttp3.MultipartBody.Part) {
         val a = api ?: return
         // 提取文件名用于 UI 显示
-        val fileName = part.headers()?.get("Content-Disposition")
+        val fileName = part.headers?.get("Content-Disposition")
             ?.let { header ->
                 Regex("filename=\"?([^\"]+)\"?").find(header)?.groupValues?.getOrNull(1)
             }
