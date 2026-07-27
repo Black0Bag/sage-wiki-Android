@@ -398,5 +398,4 @@ fun AppMainScreen(appSettings: AppSettings) {
             }
         }
     }
-    }
 }
