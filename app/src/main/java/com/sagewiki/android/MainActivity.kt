@@ -286,11 +286,12 @@ fun AppMainScreen(appSettings: AppSettings) {
             onClose = {
                 showShareScreen = false
                 MainActivity.pendingShare = null
+                selectedTab = 0
             }
         )
-        return
     }
 
+    // ── 关于页面 ──
     if (showAbout) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
@@ -303,11 +304,12 @@ fun AppMainScreen(appSettings: AppSettings) {
             )
             AboutScreen()
         }
-        return
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+    // ── 主界面（仅在非分享、非关于时显示） ──
+    if (!showShareScreen && !showAbout) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -390,9 +392,11 @@ fun AppMainScreen(appSettings: AppSettings) {
                     2 -> SearchScreen(appSettings = appSettings)
                     3 -> BrowseScreen(appSettings = appSettings)
                     4 -> QAScreen(appSettings = appSettings)
-                    5 -> SettingsScreen(appSettings = appSettings)
+                        5 -> SettingsScreen(appSettings = appSettings)
+                    }
                 }
             }
         }
+    }
     }
 }
