@@ -2,6 +2,8 @@ package com.sagewiki.android.ui.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewModelScope
 import com.sagewiki.android.data.AppSettings
 import com.sagewiki.android.network.ArticleResponse
@@ -247,23 +249,7 @@ class SearchViewModel(
          *
          * @param appSettings 应用设置，提供服务器地址和认证令牌。
          */
-        @Suppress("UNCHECKED_CAST")
-        class Factory(
-            private val appSettings: AppSettings
-        ) : ViewModelProvider.Factory {
-            /**
-             * 创建指定类型的 ViewModel 实例。
-             *
-             * @param modelClass 需要创建的 ViewModel 类型。
-             * @return 对应类型的 ViewModel 实例。
-             * @throws IllegalArgumentException 如果传入的类型不是 [SearchViewModel]。
-             */
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                if (modelClass.isAssignableFrom(SearchViewModel::class.java)) {
-                    return SearchViewModel(appSettings) as T
-                }
-                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-            }
-        }
+        fun Factory(appSettings: AppSettings): ViewModelProvider.Factory =
+            viewModelFactory { initializer { SearchViewModel(appSettings) } }
     }
 }
