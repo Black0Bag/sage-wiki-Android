@@ -124,6 +124,7 @@ fun LibraryScreen(appSettings: AppSettings) {
             // ── Tab content ─────────────────────────────────────
             when (state.selectedTab) {
                 LibraryTab.SOURCES -> SourceTab(
+                    viewModel = viewModel,
                     sources = state.sources,
                     isLoading = state.isLoading,
                     isCompiling = state.isCompiling,
@@ -238,6 +239,7 @@ fun LibraryScreen(appSettings: AppSettings) {
  */
 @Composable
 private fun SourceTab(
+    viewModel: LibraryViewModel,
     sources: List<SourceInfo>,
     isLoading: Boolean,
     isCompiling: Boolean,
@@ -295,6 +297,21 @@ private fun SourceTab(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 80.dp),
             ) {
+                // 上传+编译进度卡片
+                item {
+                    val uiState = viewModel.uiState.collectAsState()
+                    if (uiState.value.uploadPhase != UploadPhase.IDLE) {
+                        TaskProgressCard(
+                            phase = uiState.value.uploadPhase,
+                            uploadProgress = uiState.value.uploadProgress,
+                            compilePollCount = uiState.value.compilePollCount,
+                            compilePollMax = uiState.value.compilePollMax,
+                            fileName = uiState.value.currentFileName,
+                            errorMessage = uiState.value.compileStatus,
+                            onDismiss = { viewModel.resetUploadPhase() },
+                        )
+                    }
+                }
                 items(sources, key = { it.name }) { source ->
                     SourceItemCard(
                         source = source,

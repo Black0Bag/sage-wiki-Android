@@ -42,6 +42,28 @@ enum class SortOption {
 }
 
 /**
+ * Phases for the upload + compile workflow.
+ *
+ * - [IDLE]      – nothing in progress.
+ * - [UPLOADING] – file is being uploaded (determinate progress bar).
+ * - [COMPILING] – server is compiling (indeterminate progress bar).
+ * - [SUCCESS]   – compile finished successfully (green check animation).
+ * - [FAILED]    – upload or compile failed (red cross animation).
+ */
+enum class UploadPhase {
+    /** 空闲 */
+    IDLE,
+    /** 上传中（显示确定进度条） */
+    UPLOADING,
+    /** 编译中（显示不确定进度条） */
+    COMPILING,
+    /** 成功（显示绿色对勾动画） */
+    SUCCESS,
+    /** 失败（显示红色叉号动画） */
+    FAILED,
+}
+
+/**
  * UI state for the Library (文件库) screen, covering all three tabs:
  *  - 源文件
  *  - 编译产物
@@ -62,8 +84,16 @@ data class LibraryUiState(
     val isCompiling: Boolean = false,
     /** Human-readable compile status message. */
     val compileStatus: String? = null,
-    /** Upload progress as a fraction in [0, 1], or null when not uploading. */
-    val uploadProgress: Float? = null,
+    /** 上传+编译任务阶段 */
+    val uploadPhase: UploadPhase = UploadPhase.IDLE,
+    /** 上传进度 0f..1f */
+    val uploadProgress: Float = 0f,
+    /** 编译轮询当前次数 */
+    val compilePollCount: Int = 0,
+    /** 编译轮询最大次数 */
+    val compilePollMax: Int = 10,
+    /** 当前操作的文件名 */
+    val currentFileName: String? = null,
     /** Current sort option for the source file list. */
     val sortOption: SortOption = SortOption.DATE_DESC,
     /** Snackbar message to display (e.g. upload/compile/download success). */
@@ -231,45 +261,104 @@ class LibraryViewModel(
      * Upload a file via a [okhttp3.MultipartBody.Part], trigger server-side
      * compilation, then poll for completion and reload data.
      *
+     * Uses [UploadPhase] to drive the UI progress indicator:
+     * - [UploadPhase.UPLOADING] with determinate progress (0f→1f)
+     * - [UploadPhase.COMPILING] with indeterminate progress + poll count
+     * - [UploadPhase.SUCCESS] / [UploadPhase.FAILED] with auto-reset
+     *
+     * Important: [LibraryUiState.isLoading] is **not** set during upload/compile
+     * so the existing source list is not cleared.
+     *
      * @param part the multipart file part to upload
      */
     fun uploadSource(part: okhttp3.MultipartBody.Part) {
         val a = api ?: return
+        // 提取文件名用于 UI 显示
+        val fileName = part.headers()?.get("Content-Disposition")
+            ?.let { header ->
+                Regex("filename=\"?([^\"]+)\"?").find(header)?.groupValues?.getOrNull(1)
+            }
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(isLoading = true, isCompiling = true, error = null, uploadProgress = 0f) }
+                // ── 上传阶段 ──────────────────────────────────
+                _uiState.update {
+                    it.copy(
+                        uploadPhase = UploadPhase.UPLOADING,
+                        uploadProgress = 0f,
+                        currentFileName = fileName,
+                        error = null,
+                        compilePollCount = 0,
+                    )
+                }
                 a.uploadSource(part)
-                _uiState.update { it.copy(uploadProgress = 0.5f) }
-                // 上传成功后自动触发服务端编译
+
+                // 上传完成
+                _uiState.update {
+                    it.copy(
+                        uploadProgress = 1f,
+                        uploadPhase = UploadPhase.COMPILING,
+                        compileStatus = "编译已触发，正在后台处理...",
+                    )
+                }
+
+                // ── 编译阶段 ──────────────────────────────────
                 try {
                     a.compile()
+                    pollCompileStatus(a)
+
+                    // 编译成功
                     _uiState.update {
                         it.copy(
-                            compileStatus = "编译已触发，正在后台处理...",
-                            uploadProgress = 1.0f,
+                            uploadPhase = UploadPhase.SUCCESS,
+                            compileStatus = "编译完成",
+                            snackbarMessage = "上传并编译成功",
                         )
                     }
-                    // 轮询 /api/status 等待编译完成
-                    pollCompileStatus(a)
                     loadData()
-                    _uiState.update { it.copy(snackbarMessage = "上传并编译成功") }
+
+                    // 停留 2 秒后自动重置为 IDLE
+                    delay(2000)
+                    _uiState.update {
+                        it.copy(
+                            uploadPhase = UploadPhase.IDLE,
+                            uploadProgress = 0f,
+                            compilePollCount = 0,
+                            currentFileName = null,
+                            compileStatus = null,
+                            isCompiling = false,
+                        )
+                    }
                 } catch (e: Exception) {
                     val compileMsg = when (e) {
                         is IOException -> "网络错误，编译失败: ${e.message ?: "未知网络错误"}"
                         is IllegalStateException -> "服务端逻辑异常: ${e.message ?: "未知服务端错误"}"
                         else -> "编译失败: ${e.message}"
                     }
-                    // 编译失败不阻塞列表刷新，记录为软错误
+                    // 编译失败
                     _uiState.update {
                         it.copy(
-                            error = "文件已上传，但$compileMsg",
+                            uploadPhase = UploadPhase.FAILED,
                             compileStatus = compileMsg,
-                            uploadProgress = null,
+                            error = "文件已上传，但$compileMsg",
+                            isCompiling = false,
+                        )
+                    }
+                    loadData()
+
+                    // 停留 3 秒后自动重置
+                    delay(3000)
+                    _uiState.update {
+                        it.copy(
+                            uploadPhase = UploadPhase.IDLE,
+                            uploadProgress = 0f,
+                            compilePollCount = 0,
+                            currentFileName = null,
+                            compileStatus = null,
                         )
                     }
                 }
-                _uiState.update { it.copy(isCompiling = false) }
             } catch (e: Exception) {
+                // 上传失败
                 val msg = when (e) {
                     is IOException -> "网络错误，上传失败: ${e.message ?: "未知网络错误"}"
                     is IllegalStateException -> "服务端逻辑异常: ${e.message ?: "未知服务端错误"}"
@@ -277,10 +366,22 @@ class LibraryViewModel(
                 }
                 _uiState.update {
                     it.copy(
-                        isLoading = false,
+                        uploadPhase = UploadPhase.FAILED,
+                        compileStatus = msg,
+                        error = msg,
                         isCompiling = false,
-                        uploadProgress = null,
-                        error = msg
+                    )
+                }
+
+                // 停留 3 秒后自动重置
+                delay(3000)
+                _uiState.update {
+                    it.copy(
+                        uploadPhase = UploadPhase.IDLE,
+                        uploadProgress = 0f,
+                        compilePollCount = 0,
+                        currentFileName = null,
+                        compileStatus = null,
                     )
                 }
             }
@@ -290,12 +391,15 @@ class LibraryViewModel(
     /**
      * Trigger server-side compilation manually.
      *
-     * Sets [LibraryUiState.isCompiling] to `true`, calls the API
-     * [SageWikiApi.compile], then polls GET /api/status every 3 seconds
-     * (up to 30 seconds / 10 attempts) to detect when the server has
+     * Uses [UploadPhase.COMPILING] to drive the UI indeterminate progress bar,
+     * calls the API [SageWikiApi.compile], then polls GET /api/status every
+     * 3 seconds (up to 30 seconds / 10 attempts) to detect when the server has
      * finished processing. If the entries count increases or the vectors
      * count changes, the compilation is considered successful; otherwise
      * a timeout message is shown.
+     *
+     * Important: [LibraryUiState.isLoading] is **not** set so the existing
+     * source list is not cleared.
      */
     fun compile() {
         val a = api ?: return
@@ -303,10 +407,11 @@ class LibraryViewModel(
             try {
                 _uiState.update {
                     it.copy(
-                        isLoading = true,
+                        uploadPhase = UploadPhase.COMPILING,
                         isCompiling = true,
                         error = null,
                         compileStatus = null,
+                        compilePollCount = 0,
                     )
                 }
                 a.compile()
@@ -315,8 +420,27 @@ class LibraryViewModel(
                 }
                 // 轮询 /api/status 等待编译完成
                 pollCompileStatus(a)
+
+                // 编译成功
+                _uiState.update {
+                    it.copy(
+                        uploadPhase = UploadPhase.SUCCESS,
+                        compileStatus = "编译完成",
+                        snackbarMessage = "编译成功",
+                        isCompiling = false,
+                    )
+                }
                 loadData()
-                _uiState.update { it.copy(isCompiling = false, snackbarMessage = "编译成功") }
+
+                // 停留 2 秒后自动重置为 IDLE
+                delay(2000)
+                _uiState.update {
+                    it.copy(
+                        uploadPhase = UploadPhase.IDLE,
+                        compilePollCount = 0,
+                        compileStatus = null,
+                    )
+                }
             } catch (e: Exception) {
                 val msg = when (e) {
                     is IOException -> "网络错误，编译失败: ${e.message ?: "未知网络错误"}"
@@ -325,10 +449,20 @@ class LibraryViewModel(
                 }
                 _uiState.update {
                     it.copy(
-                        isLoading = false,
+                        uploadPhase = UploadPhase.FAILED,
                         isCompiling = false,
                         error = msg,
                         compileStatus = msg,
+                    )
+                }
+
+                // 停留 3 秒后自动重置
+                delay(3000)
+                _uiState.update {
+                    it.copy(
+                        uploadPhase = UploadPhase.IDLE,
+                        compilePollCount = 0,
+                        compileStatus = null,
                     )
                 }
             }
@@ -342,6 +476,9 @@ class LibraryViewModel(
      * 3 seconds up to 10 times (30 seconds total). If entries increases
      * or vectors changes, compilation is considered done. On timeout,
      * a "编译可能仍在后台进行" message is set.
+     *
+     * Each poll iteration updates [LibraryUiState.compilePollCount] so the
+     * UI can display progress like "轮询 3/10".
      *
      * @param a the [SageWikiApi] instance to use for polling.
      */
@@ -362,6 +499,10 @@ class LibraryViewModel(
 
         for (attempt in 1..maxAttempts) {
             delay(pollIntervalMs)
+
+            // 每次轮询时更新 compilePollCount 到 UI state
+            _uiState.update { it.copy(compilePollCount = attempt) }
+
             try {
                 val status = a.getStatus()
                 val entries = status.entries
@@ -385,6 +526,25 @@ class LibraryViewModel(
         // 超时：entries 未增加、向量数未变化
         _uiState.update {
             it.copy(compileStatus = "编译可能仍在后台进行")
+        }
+    }
+
+    /**
+     * Manually reset the [UploadPhase] to [UploadPhase.IDLE].
+     *
+     * Call this to dismiss the success/failure animation immediately
+     * without waiting for the automatic delay-based reset.
+     */
+    fun resetUploadPhase() {
+        _uiState.update {
+            it.copy(
+                uploadPhase = UploadPhase.IDLE,
+                uploadProgress = 0f,
+                compilePollCount = 0,
+                currentFileName = null,
+                compileStatus = null,
+                isCompiling = false,
+            )
         }
     }
 

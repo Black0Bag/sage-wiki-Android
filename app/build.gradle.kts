@@ -43,8 +43,8 @@ android {
         applicationId = "com.sagewiki.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 30001
-        versionName = "3.0.1"
+        versionCode = 30100
+        versionName = "3.1.0"
     }
 
     signingConfigs {
